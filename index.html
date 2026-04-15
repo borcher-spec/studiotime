@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="StudioTime">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>Studio Time</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --bg: #F5F2EE;
+            --surface: #FFFFFF;
+            --primary: #2D2926;
+            --accent: #B8936A;
+            --accent-light: #F2EBE1;
+            --text: #2D2926;
+            --text-muted: #9B8B7E;
+            --border: #E5DDD5;
+            --success: #5A8A6A;
+            --danger: #B84040;
+            --tab-h: 64px;
+            --header-h: 68px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* ── HEADER ── */
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 0 18px;
+            height: var(--header-h);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        }
+        .header-left { display: flex; flex-direction: column; gap: 2px; }
+        .header-title { font-size: 19px; font-weight: 700; letter-spacing: 0.3px; }
+        .header-sub { font-size: 12px; opacity: 0.6; }
+        .header-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 20px;
+            padding: 7px 14px;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .header-btn:active { background: rgba(255,255,255,0.3); }
+
+        /* ── TAB BAR ── */
+        .tab-bar {
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            display: flex;
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 500px;
+            height: var(--tab-h);
+            z-index: 100;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+        }
+        .tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            color: var(--text-muted);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            transition: color 0.2s;
+        }
+        .tab-btn.active { color: var(--accent); }
+        .tab-btn svg { width: 22px; height: 22px; }
+
+        /* ── MAIN ── */
+        .main {
+            padding: 18px 16px;
+            padding-bottom: calc(var(--tab-h) + 18px);
+        }
+        .tab-content { animation: fadeIn 0.18s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── CARDS ── */
+        .card {
+            background: var(--surface);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        /* ── ACTIVE TIMER ── */
+        .timer-card {
+            text-align: center;
+            padding: 28px 20px 24px;
+        }
+        .timer-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .dot-pulse {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 1.4s infinite;
+            flex-shrink: 0;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+        .timer-client-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 16px;
+        }
+        .timer-digits {
+            font-size: 58px;
+            font-weight: 200;
+            letter-spacing: -2px;
+            color: var(--primary);
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            margin-bottom: 24px;
+            font-family: 'SF Mono', 'Roboto Mono', monospace;
+        }
+        .timer-hint {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+        .idle-card {
+            text-align: center;
+            padding: 22px 20px;
+        }
+        .idle-icon { font-size: 36px; margin-bottom: 10px; }
+        .idle-text { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+
+        /* ── BUTTONS ── */
+        .btn {
+            padding: 13px 24px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            letter-spacing: 0.2px;
+        }
+        .btn-stop { background: var(--danger); color: white; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-outline { background: transparent; border: 2px solid var(--border); color: var(--text); }
+        .btn-ghost { background: var(--bg); color: var(--text); border: none; }
+        .btn:active { transform: scale(0.96); opacity: 0.9; }
+        .btn-block { width: 100%; justify-content: center; }
+
+        /* ── CLIENT GRID ── */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+        .client-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .client-card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 16px 14px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.18s;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            position: relative;
+            user-select: none;
+        }
+        .client-card.is-active {
+            border-color: var(--success);
+            background: #F0F8F2;
+        }
+        .client-card:active { transform: scale(0.96); }
+        .client-avatar {
+            width: 46px; height: 46px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+            font-weight: 800;
+            color: white;
+            margin: 0 auto 9px;
+            letter-spacing: -0.5px;
+        }
+        .client-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .client-today {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .client-active-dot {
+            position: absolute;
+            top: 10px; right: 10px;
+            width: 9px; height: 9px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 1.4s infinite;
+        }
+        .client-edit-btn {
+            position: absolute;
+            top: 8px; right: 8px;
+            background: rgba(0,0,0,0.08);
+            border: none;
+            border-radius: 50%;
+            width: 28px; height: 28px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            transition: background 0.15s, opacity 0.2s;
+            opacity: 0.55;
+        }
+        .client-edit-btn:active { background: rgba(0,0,0,0.18); }
+        .client-card:hover .client-edit-btn { opacity: 1; }
+
+        /* ── FILTER CHIPS ── */
+        .chip-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .chip-row::-webkit-scrollbar { display: none; }
+        .chip {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 2px solid var(--border);
+            background: var(--surface);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s;
+            color: var(--text-muted);
+        }
+        .chip.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+        /* ── LOG ── */
+        .date-group { margin-bottom: 22px; }
+        .date-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 8px;
+            padding: 0 2px;
+        }
+        .session-item {
+            background: var(--surface);
+            border-radius: 13px;
+            padding: 13px 14px;
+            margin-bottom: 7px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .session-color-bar { width: 4px; min-height: 38px; align-self: stretch; border-radius: 4px; flex-shrink: 0; }
+        .session-info { flex: 1; min-width: 0; }
+        .session-client-name { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+        .session-time-range { font-size: 12px; color: var(--text-muted); }
+        .session-dur { font-size: 15px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+        .session-del {
+            background: none; border: none; cursor: pointer;
+            color: var(--text-muted); font-size: 17px; padding: 4px 6px;
+            opacity: 0.4; transition: opacity 0.2s;
+            border-radius: 50%;
+        }
+        .session-del:hover { opacity: 1; color: var(--danger); }
+
+        /* ── REPORT ── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border-radius: 14px;
+            padding: 16px 10px;
+            text-align: center;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.04);
+        }
+        .stat-value { font-size: 22px; font-weight: 800; color: var(--accent); }
+        .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-top: 2px; }
+        .report-row {
+            background: var(--surface);
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .report-info { flex: 1; min-width: 0; }
+        .report-name { font-size: 15px; font-weight: 700; }
+        .report-sessions-count { font-size: 12px; color: var(--text-muted); }
+        .report-hours-big { font-size: 22px; font-weight: 800; color: var(--accent); text-align: right; }
+        .report-hours-label { font-size: 10px; color: var(--text-muted); text-align: right; text-transform: uppercase; letter-spacing: 0.5px; }
+        .export-section { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+        .sync-note {
+            background: var(--accent-light);
+            border-radius: 14px;
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--text);
+            line-height: 1.5;
+            border-left: 4px solid var(--accent);
+        }
+        .sync-note strong { display: block; margin-bottom: 4px; font-weight: 700; }
+
+        /* ── MODAL ── */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 200;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            animation: fadeIn 0.15s;
+        }
+        .modal {
+            background: var(--surface);
+            border-radius: 26px 26px 0 0;
+            padding: 24px 20px 36px;
+            width: 100%;
+            max-width: 500px;
+            animation: slideUp 0.22s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(60px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-handle {
+            width: 40px; height: 4px;
+            background: var(--border);
+            border-radius: 4px;
+            margin: 0 auto 20px;
+        }
+        .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 7px; display: block; }
+        .form-input {
+            width: 100%; padding: 14px 16px;
+            border: 2px solid var(--border);
+            border-radius: 13px;
+            font-size: 16px;
+            background: var(--bg);
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+        }
+        .form-input:focus { border-color: var(--accent); }
+        .color-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+        .color-swatch {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.15s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        }
+        .color-swatch.picked { border-color: var(--primary); transform: scale(1.15); }
+        .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+        .modal-actions .btn { flex: 1; }
+
+        /* ── EMPTY ── */
+        .empty {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--text-muted);
+        }
+        .empty-icon { font-size: 42px; margin-bottom: 14px; }
+        .empty p { font-size: 15px; line-height: 1.6; }
+
+        /* ── TODAY BANNER ── */
+        .today-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--accent-light);
+            border-radius: 13px;
+            padding: 11px 16px;
+            margin-bottom: 14px;
+            font-size: 13px;
+        }
+        .today-banner-label { color: var(--text-muted); font-weight: 600; }
+        .today-banner-value { font-weight: 800; color: var(--accent); font-size: 16px; }
+
+        /* ── NOTE INPUT ── */
+        .note-wrap { margin-top: 16px; }
+        .note-input {
+            width: 100%;
+            padding: 11px 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-size: 14px;
+            background: var(--bg);
+            color: var(--text);
+            outline: none;
+            text-align: center;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+        }
+        .note-input:focus { border-color: var(--accent); }
+        .note-input::placeholder { color: var(--text-muted); font-size: 13px; }
+        .note-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        /* ── REPORT DETAIL ── */
+        .report-client-block {
+            background: var(--surface);
+            border-radius: 16px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+        }
+        .report-client-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+            border-bottom: 2px solid var(--border);
+        }
+        .report-client-header-info { flex: 1; min-width: 0; }
+        .report-client-header-name { font-size: 17px; font-weight: 800; }
+        .report-client-header-count { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .report-client-header-total { text-align: right; }
+        .report-client-header-hrs { font-size: 26px; font-weight: 800; color: var(--accent); line-height: 1; }
+        .report-client-header-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+        .report-color-bar { width: 5px; align-self: stretch; border-radius: 3px; flex-shrink: 0; }
+        .report-row { box-shadow: none; border-radius: 0; margin-bottom: 0; }
+        .report-sessions-list { }
+        .report-detail-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 16px 9px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+        }
+        .report-detail-row:last-child { border-bottom: none; }
+        .report-detail-date {
+            color: var(--text-muted);
+            white-space: nowrap;
+            font-weight: 600;
+            min-width: 72px;
+        }
+        .report-detail-note {
+            flex: 1;
+            color: var(--text);
+            font-style: italic;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .report-detail-note.empty { color: var(--text-muted); font-style: normal; }
+        .report-detail-dur {
+            font-weight: 700;
+            color: var(--accent);
+            white-space: nowrap;
+        }
+        .report-no-sessions {
+            padding: 10px 20px;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-style: italic;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ── TRAVEL CARD ── */
+        .travel-section { margin-top: 18px; }
+        .travel-card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.18s;
+            user-select: none;
+        }
+        .travel-card.is-active {
+            border-color: var(--success);
+            background: #F0F8F2;
+        }
+        .travel-card:active { transform: scale(0.98); }
+        .travel-icon {
+            width: 46px; height: 46px;
+            border-radius: 50%;
+            background: #5B8DB8;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .travel-info { flex: 1; }
+        .travel-name { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+        .travel-sub { font-size: 11px; color: var(--text-muted); }
+        .travel-timer { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); font-family: 'SF Mono','Roboto Mono',monospace; }
+        .travel-dot {
+            width: 9px; height: 9px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 1.4s infinite;
+            margin-right: 6px;
+        }
+
+        /* ── MILEAGE ── */
+        .mileage-log-btn {
+            width: 100%;
+            margin-top: 10px;
+            background: var(--surface);
+            border: 2px dashed var(--border);
+            border-radius: 14px;
+            padding: 13px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.18s;
+        }
+        .mileage-log-btn:active { background: var(--bg); transform: scale(0.98); }
+        .mileage-session-item {
+            background: var(--surface);
+            border-radius: 13px;
+            padding: 13px 14px;
+            margin-bottom: 7px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .km-badge {
+            font-size: 15px;
+            font-weight: 800;
+            color: #7A6AAD;
+            white-space: nowrap;
+        }
+        .km-sub { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .report-km-total {
+            font-size: 13px;
+            font-weight: 700;
+            color: #7A6AAD;
+            padding: 8px 16px 8px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .report-km-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px 8px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            background: #FAF8FF;
+        }
+        .report-km-row:last-child { border-bottom: none; }
+        .report-km-date { color: var(--text-muted); font-weight: 600; white-space: nowrap; min-width: 72px; }
+        .report-km-note { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .report-km-dist { font-weight: 800; color: #7A6AAD; white-space: nowrap; }
+
+        /* ── DANGER ZONE ── */
+        .danger-zone {
+            margin-top: 22px;
+            border-top: 1px solid var(--border);
+            padding-top: 18px;
+        }
+        .danger-zone-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 10px; }
+
+        /* ── SESSION NOTE TAG ── */
+        .session-note {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 2px 7px;
+            margin-top: 4px;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG & CONSTANTS
+// ═══════════════════════════════════════════
+const COLORS = [
+    '#B8936A', // sand
+    '#7A9E87', // sage
+    '#8E7BAD', // lavender
+    '#5B8DB8', // steel blue
+    '#B87A7A', // rose
+    '#5B9EB8', // teal
+    '#B8A45B', // gold
+    '#8DB875', // green
+];
+const STORE_KEY = 'studioTime_v2';
+const TRAVEL_ID = '__travel__';
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let S = {
+    clients: [],
+    sessions: [],       // client sessions
+    travelSessions: [], // travel sessions
+    mileageLog: [],     // { id, clientId|null, date: ISO, km: number, note: string }
+    active: null,       // { clientId, start: ISO, note: string }
+    travelActive: null, // { start: ISO, note: string }
+    tab: 'timer',
+    filter: 'month',    // 'week' | 'month' | 'all'
+    modal: null,        // 'add' | 'edit' | 'mileage'
+    editId: null,
+    form: { name: '', color: COLORS[0] },
+    mileageForm: { clientId: '', km: '', note: '', date: '' }
+};
+
+// ═══════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════
+function load() {
+    try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw) {
+            const d = JSON.parse(raw);
+            if (d.clients) S.clients = d.clients;
+            if (d.sessions) S.sessions = d.sessions;
+            if (d.travelSessions) S.travelSessions = d.travelSessions;
+            if (d.mileageLog) S.mileageLog = d.mileageLog;
+            if (d.active !== undefined) S.active = d.active;
+            if (d.travelActive !== undefined) S.travelActive = d.travelActive;
+        }
+    } catch(e) {}
+
+    if (!S.clients.length) {
+        S.clients = [
+            { id: uid(), name: 'Client A', color: COLORS[0] },
+            { id: uid(), name: 'Client B', color: COLORS[1] },
+        ];
+    }
+}
+
+function save() {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+        clients: S.clients,
+        sessions: S.sessions,
+        travelSessions: S.travelSessions,
+        mileageLog: S.mileageLog,
+        active: S.active,
+        travelActive: S.travelActive
+    }));
+}
+
+function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// ═══════════════════════════════════════════
+// TIMER
+// ═══════════════════════════════════════════
+function startTimer(clientId) {
+    const carriedNote = readNoteInput();  // carry note when switching clients
+    if (S.active) { S.active.note = carriedNote; finishSession(); }
+    S.active = { clientId, start: new Date().toISOString(), note: carriedNote };
+    save(); render();
+}
+
+function stopTimer() {
+    if (S.active) S.active.note = readNoteInput();
+    finishSession();
+    save(); render();
+}
+
+function finishSession() {
+    if (!S.active) return;
+    const dur = elapsed(S.active.start);
+    if (dur < 2) { S.active = null; return; } // ignore accidental sub-2s
+    S.sessions.unshift({
+        id: uid(),
+        clientId: S.active.clientId,
+        start: S.active.start,
+        end: new Date().toISOString(),
+        note: S.active.note || ''
+    });
+    S.active = null;
+}
+
+function readNoteInput() {
+    const el = document.getElementById('active-note');
+    return el ? el.value : (S.active?.note || '');
+}
+
+// ── TRAVEL TIMER ──
+function toggleTravel() {
+    if (S.travelActive) {
+        // stop
+        const note = (document.getElementById('active-note-travel')?.value || S.travelActive.note || '').trim();
+        const dur = elapsed(S.travelActive.start);
+        if (dur >= 2) {
+            S.travelSessions.unshift({
+                id: uid(),
+                start: S.travelActive.start,
+                end: new Date().toISOString(),
+                note
+            });
+        }
+        S.travelActive = null;
+    } else {
+        S.travelActive = { start: new Date().toISOString(), note: '' };
+    }
+    save(); render();
+}
+
+// ── MILEAGE ──
+function openMileageModal() {
+    S.mileageForm = {
+        clientId: S.active?.clientId || '',
+        km: '',
+        note: '',
+        date: new Date().toISOString().slice(0, 10)
+    };
+    S.modal = 'mileage';
+    render();
+    setTimeout(() => document.getElementById('mkm')?.focus(), 60);
+}
+
+function saveMileage() {
+    const kmVal = parseFloat(document.getElementById('mkm')?.value);
+    if (!kmVal || kmVal <= 0) { showToast('Please enter a valid distance in km'); return; }
+    const note     = document.getElementById('mnote')?.value.trim() || '';
+    const clientId = document.getElementById('mclient')?.value || null;
+    const dateStr  = document.getElementById('mdate')?.value || new Date().toISOString().slice(0, 10);
+    S.mileageLog.unshift({
+        id: uid(),
+        clientId: clientId || null,
+        date: dateStr + 'T12:00:00',
+        km: kmVal,
+        note
+    });
+    S.modal = null;
+    save(); render();
+    showToast(`${kmVal} km logged ✓`);
+}
+
+function deleteMileage(id) {
+    if (!confirm('Remove this mileage entry?')) return;
+    S.mileageLog = S.mileageLog.filter(m => m.id !== id);
+    save(); render();
+}
+
+// ── RESET ──
+function clearAllSessions() {
+    if (!confirm('This will permanently delete ALL recorded sessions, mileage entries, and travel for all clients. Your client list will be kept.\n\nAre you sure?')) return;
+    S.sessions = [];
+    S.travelSessions = [];
+    S.mileageLog = [];
+    S.active = null;
+    S.travelActive = null;
+    save(); render();
+    showToast('All sessions cleared ✓');
+}
+
+function elapsed(startISO) {
+    return Math.floor((Date.now() - new Date(startISO).getTime()) / 1000);
+}
+
+function fmtTimer(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function sessionSecs(s) {
+    return Math.floor((new Date(s.end) - new Date(s.start)) / 1000);
+}
+
+function fmtHours(secs) {
+    if (secs < 60) return '< 1m';
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+}
+
+function fmtDecimalHours(secs) {
+    return (secs / 3600).toFixed(2) + 'h';
+}
+
+// ═══════════════════════════════════════════
+// FILTERS
+// ═══════════════════════════════════════════
+function filterFn() {
+    if (S.filter === 'week') return s => (Date.now() - new Date(s.start)) < 7*86400000;
+    if (S.filter === 'month') {
+        const n = new Date();
+        return s => {
+            const d = new Date(s.start);
+            return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear();
+        };
+    }
+    return null;
+}
+
+function filteredSessions() {
+    const fn = filterFn();
+    return fn ? S.sessions.filter(fn) : S.sessions;
+}
+
+function todaySessions() {
+    const td = new Date().toDateString();
+    return S.sessions.filter(s => new Date(s.start).toDateString() === td);
+}
+
+function clientSecs(clientId, sessionsArr) {
+    return (sessionsArr || filteredSessions())
+        .filter(s => s.clientId === clientId)
+        .reduce((sum, s) => sum + sessionSecs(s), 0);
+}
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function getClient(id) { return S.clients.find(c => c.id === id); }
+
+function initials(name) {
+    return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+}
+
+function fmtDate(iso) {
+    const d = new Date(iso);
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+function fmtTimeRange(s) {
+    const fmt = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${fmt(s.start)} → ${fmt(s.end)}`;
+}
+
+function fmtToday() {
+    return new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function fmtShortDate(iso) {
+    return new Date(iso).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function fmtShortTime(iso) {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function groupByDate(sessions) {
+    const map = {};
+    for (const s of sessions) {
+        const key = new Date(s.start).toDateString();
+        if (!map[key]) map[key] = { label: fmtDate(s.start), sessions: [] };
+        map[key].sessions.push(s);
+    }
+    return Object.values(map);
+}
+
+// ═══════════════════════════════════════════
+// EXPORTS
+// ═══════════════════════════════════════════
+function exportExcel() {
+    if (typeof XLSX === 'undefined') {
+        showToast('Excel library not loaded — check your internet connection');
+        return;
+    }
+    const fn = filterFn();
+    const wb = XLSX.utils.book_new();
+    const period = S.filter === 'all' ? 'All Time' : S.filter === 'month' ? 'This Month' : 'This Week';
+    const dateStr = new Date().toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+
+    // ── One sheet per client ──
+    for (const c of S.clients) {
+        const clientSessions = (fn ? S.sessions.filter(fn) : S.sessions)
+            .filter(s => s.clientId === c.id)
+            .sort((a, b) => new Date(a.start) - new Date(b.start));
+        const clientMileage = (fn ? S.mileageLog.filter(m => fn({ start: m.date })) : S.mileageLog)
+            .filter(m => m.clientId === c.id)
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        const totalSecs = clientSessions.reduce((sum, s) => sum + sessionSecs(s), 0);
+        const totalKm   = clientMileage.reduce((sum, m) => sum + m.km, 0);
+
+        const rows = [
+            [c.name + ' — ' + period + ' — Exported ' + dateStr],
+            [],
+            ['TIME LOG'],
+            ['Date', 'Start', 'End', 'Hours', 'Minutes', 'Activity / Location'],
+        ];
+
+        for (const s of clientSessions) {
+            const secs = sessionSecs(s);
+            rows.push([
+                new Date(s.start).toLocaleDateString(),
+                new Date(s.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                new Date(s.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                parseFloat((secs / 3600).toFixed(2)),
+                Math.round(secs / 60),
+                s.note || ''
+            ]);
+        }
+
+        rows.push(
+            [],
+            ['', '', 'TOTAL HOURS', parseFloat((totalSecs / 3600).toFixed(2)), '', ''],
+        );
+
+        if (clientMileage.length > 0) {
+            rows.push([], ['MILEAGE LOG'], ['Date', 'Destination / Note', 'km']);
+            for (const m of clientMileage) {
+                rows.push([
+                    new Date(m.date).toLocaleDateString(),
+                    m.note || '',
+                    m.km
+                ]);
+            }
+            rows.push([], ['', 'TOTAL KM', totalKm]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 34 }];
+        // Style the header row bold (basic)
+        XLSX.utils.book_append_sheet(wb, ws, c.name.slice(0, 31));
+    }
+
+    // ── Travel sheet ──
+    const travelFiltered = (fn ? S.travelSessions.filter(fn) : S.travelSessions)
+        .sort((a, b) => new Date(a.start) - new Date(b.start));
+    if (travelFiltered.length > 0) {
+        const tTotalSecs = travelFiltered.reduce((sum, s) => sum + sessionSecs(s), 0);
+        const tRows = [
+            ['Travel Time — ' + period + ' — Exported ' + dateStr],
+            [],
+            ['Date', 'Start', 'End', 'Hours', 'Destination']
+        ];
+        for (const s of travelFiltered) {
+            tRows.push([
+                new Date(s.start).toLocaleDateString(),
+                new Date(s.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                new Date(s.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                parseFloat((sessionSecs(s) / 3600).toFixed(2)),
+                s.note || ''
+            ]);
+        }
+        tRows.push([], ['', '', 'TOTAL HOURS', parseFloat((tTotalSecs / 3600).toFixed(2))]);
+        const tws = XLSX.utils.aoa_to_sheet(tRows);
+        tws['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 34 }];
+        XLSX.utils.book_append_sheet(wb, tws, 'Travel');
+    }
+
+    // ── General mileage sheet ──
+    const generalMileage = (fn ? S.mileageLog.filter(m => fn({ start: m.date })) : S.mileageLog)
+        .filter(m => !m.clientId)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (generalMileage.length > 0) {
+        const gRows = [
+            ['General Mileage — ' + period + ' — Exported ' + dateStr],
+            [],
+            ['Date', 'Destination / Note', 'km']
+        ];
+        for (const m of generalMileage) {
+            gRows.push([new Date(m.date).toLocaleDateString(), m.note || '', m.km]);
+        }
+        gRows.push([], ['', 'TOTAL KM', generalMileage.reduce((sum, m) => sum + m.km, 0)]);
+        const gws = XLSX.utils.aoa_to_sheet(gRows);
+        gws['!cols'] = [{ wch: 14 }, { wch: 34 }, { wch: 10 }];
+        XLSX.utils.book_append_sheet(wb, gws, 'General Mileage');
+    }
+
+    const fileName = `studio-time-${S.filter}-${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showToast('Excel file downloaded ✓');
+}
+
+function exportBackup() {
+    const json = JSON.stringify({ clients: S.clients, sessions: S.sessions, active: S.active }, null, 2);
+    download(`studio-backup-${new Date().toISOString().slice(0,10)}.json`, json, 'application/json');
+}
+
+function download(name, content, type) {
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function importBackup(file) {
+    const r = new FileReader();
+    r.onload = e => {
+        try {
+            const d = JSON.parse(e.target.result);
+            if (d.clients) S.clients = d.clients;
+            if (d.sessions) S.sessions = d.sessions;
+            if (d.travelSessions) S.travelSessions = d.travelSessions;
+            if (d.mileageLog) S.mileageLog = d.mileageLog;
+            if (d.active !== undefined) S.active = d.active;
+            if (d.travelActive !== undefined) S.travelActive = d.travelActive;
+            save(); render();
+            showToast('Data imported ✓');
+        } catch { showToast('Could not read file — make sure it\'s a Studio Time backup.'); }
+    };
+    r.readAsText(file);
+}
+
+// ═══════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════
+function showToast(msg) {
+    let t = document.getElementById('toast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'toast';
+        t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2D2926;color:white;padding:10px 20px;border-radius:30px;font-size:14px;font-weight:600;z-index:999;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.style.opacity = '0', 2500);
+}
+
+// ═══════════════════════════════════════════
+// CLIENT CRUD
+// ═══════════════════════════════════════════
+function openAdd() {
+    S.form = { name: '', color: COLORS[0] };
+    S.modal = 'add';
+    render();
+    setTimeout(() => document.getElementById('cname')?.focus(), 60);
+}
+
+function openEdit(id) {
+    const c = getClient(id);
+    if (!c) return;
+    S.editId = id;
+    S.form = { name: c.name, color: c.color };
+    S.modal = 'edit';
+    render();
+    setTimeout(() => document.getElementById('cname')?.focus(), 60);
+}
+
+function saveClient() {
+    const name = S.form.name.trim();
+    if (!name) { showToast('Please enter a client name'); return; }
+    if (S.modal === 'add') {
+        S.clients.push({ id: uid(), name, color: S.form.color });
+    } else {
+        const c = getClient(S.editId);
+        if (c) { c.name = name; c.color = S.form.color; }
+    }
+    S.modal = null;
+    save(); render();
+}
+
+function deleteClient(id) {
+    if (!confirm(`Delete this client and all ${S.sessions.filter(s=>s.clientId===id).length} session(s)?`)) return;
+    S.clients = S.clients.filter(c => c.id !== id);
+    S.sessions = S.sessions.filter(s => s.clientId !== id);
+    if (S.active?.clientId === id) S.active = null;
+    S.modal = null;
+    save(); render();
+}
+
+function deleteSession(id, isTravel) {
+    if (!confirm('Remove this session?')) return;
+    if (isTravel) {
+        S.travelSessions = S.travelSessions.filter(s => s.id !== id);
+    } else {
+        S.sessions = S.sessions.filter(s => s.id !== id);
+    }
+    save(); render();
+}
+
+function closeModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    S.modal = null;
+    render();
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+function render() {
+    document.getElementById('app').innerHTML =
+        renderHeader() +
+        `<div class="main tab-content">` +
+        (S.tab === 'timer' ? renderTimer() : '') +
+        (S.tab === 'log'   ? renderLog()   : '') +
+        (S.tab === 'report'? renderReport(): '') +
+        `</div>` +
+        renderTabBar() +
+        (S.modal ? renderModal() : '');
+}
+
+// ── HEADER ──
+function renderHeader() {
+    let rightBtn = '';
+    if (S.tab === 'timer')  rightBtn = `<button class="header-btn" onclick="openAdd()">+ Client</button>`;
+    if (S.tab === 'report') rightBtn = `<button class="header-btn" onclick="exportExcel()">Export Excel</button>`;
+    return `
+    <div class="header">
+        <div class="header-left">
+            <div class="header-title">Studio Time</div>
+            <div class="header-sub">${fmtToday()}</div>
+        </div>
+        ${rightBtn}
+    </div>`;
+}
+
+// ── TAB BAR ──
+function renderTabBar() {
+    const tabs = [
+        { id: 'timer',  label: 'Timer',  svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><polyline points="12 7 12 12 15.5 14"/></svg>` },
+        { id: 'log',    label: 'Log',    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>` },
+        { id: 'report', label: 'Report', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
+    ];
+    return `<nav class="tab-bar">
+        ${tabs.map(t => `
+        <button class="tab-btn ${S.tab === t.id ? 'active' : ''}" onclick="switchTab('${t.id}')">
+            ${t.svg}${t.label}
+        </button>`).join('')}
+    </nav>`;
+}
+
+// ── TIMER TAB ──
+function renderTimer() {
+    const active = S.active;
+    const ac = active ? getClient(active.clientId) : null;
+    const elap = active ? elapsed(active.start) : 0;
+    const todayArr = todaySessions();
+    const todayTotal = todayArr.reduce((sum, s) => sum + sessionSecs(s), 0) + (active ? elap : 0);
+
+    let html = '';
+
+    // Active timer card
+    if (active && ac) {
+        html += `
+        <div class="card timer-card">
+            <div class="timer-status"><div class="dot-pulse"></div>Tracking</div>
+            <div class="timer-client-name">${ac.name}</div>
+            <div class="timer-digits" id="timer-el">${fmtTimer(elap)}</div>
+            <button class="btn btn-stop" onclick="stopTimer()">■&nbsp; Stop Timer</button>
+            <div class="note-wrap">
+                <div class="note-label">📍 Where / what are you working on?</div>
+                <input id="active-note"
+                       class="note-input"
+                       type="text"
+                       placeholder="e.g. Hertex, Office – moodboards, Site visit"
+                       value="${active.note || ''}">
+            </div>
+            <div class="timer-hint">Tap another client to switch — note carries over</div>
+        </div>`;
+    } else {
+        html += `
+        <div class="card idle-card">
+            <div class="idle-icon">⏱</div>
+            <div class="idle-text">No active timer<br>Tap a client card to start tracking</div>
+        </div>`;
+    }
+
+    // Today's total banner
+    if (todayTotal > 0) {
+        html += `
+        <div class="today-banner">
+            <span class="today-banner-label">Total billed today</span>
+            <span class="today-banner-value">${fmtHours(todayTotal)}</span>
+        </div>`;
+    }
+
+    // Clients
+    html += `
+    <div class="section-header">
+        <div class="section-title">Your clients</div>
+        <div style="font-size:11px;color:var(--text-muted)">Tap ✎ to edit</div>
+    </div>
+    <div class="client-grid">`;
+
+    for (const c of S.clients) {
+        const isActive = active?.clientId === c.id;
+        const todaySec = clientSecs(c.id, todayArr) + (isActive ? elap : 0);
+        html += `
+        <div class="client-card ${isActive ? 'is-active' : ''}"
+             data-client-id="${c.id}"
+             onclick="handleClientTap('${c.id}')">
+            ${isActive
+                ? '<div class="client-active-dot"></div>'
+                : `<button class="client-edit-btn" onclick="event.stopPropagation(); openEdit('${c.id}')" title="Edit client">✎</button>`
+            }
+            <div class="client-avatar" style="background:${c.color}">${initials(c.name)}</div>
+            <div class="client-name">${c.name}</div>
+            <div class="client-today">${todaySec > 0 ? 'Today: ' + fmtHours(todaySec) : isActive ? 'Running…' : 'No time today'}</div>
+        </div>`;
+    }
+
+    if (!S.clients.length) {
+        html += `<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">👤</div><p>No clients yet.<br>Tap "+ Client" to add one.</p></div></div>`;
+    }
+
+    html += `</div>`;
+
+    // ── Travel section ──
+    const ta = S.travelActive;
+    const travelElap = ta ? elapsed(ta.start) : 0;
+    const travelToday = S.travelSessions
+        .filter(s => new Date(s.start).toDateString() === new Date().toDateString())
+        .reduce((sum, s) => sum + sessionSecs(s), 0);
+
+    html += `<div class="travel-section">
+        <div class="section-header" style="margin-bottom:10px">
+            <div class="section-title">Travel time</div>
+            ${travelToday > 0 ? `<div style="font-size:11px;color:var(--text-muted)">Today: ${fmtHours(travelToday + (ta ? travelElap : 0))}</div>` : ''}
+        </div>
+        <div class="travel-card ${ta ? 'is-active' : ''}" onclick="toggleTravel()">
+            <div class="travel-icon">🚗</div>
+            <div class="travel-info">
+                <div class="travel-name">${ta ? 'Travelling…' : 'Start travel timer'}</div>
+                <div class="travel-sub">${ta ? 'Tap to stop' : 'Tap to begin tracking'}</div>
+            </div>
+            ${ta
+                ? `<div style="display:flex;align-items:center"><div class="travel-dot"></div><div class="travel-timer" id="travel-el">${fmtTimer(travelElap)}</div></div>`
+                : (travelToday > 0 ? `<div style="font-size:14px;font-weight:700;color:var(--accent)">${fmtHours(travelToday)}</div>` : '')
+            }
+        </div>
+        ${ta ? `<div style="margin-top:10px">
+            <input id="active-note-travel" class="note-input" type="text"
+                   placeholder="📍 Where are you travelling to?"
+                   value="${ta.note || ''}">
+        </div>` : ''}
+        <button class="mileage-log-btn" onclick="openMileageModal()">
+            <span style="font-size:20px">🛣️</span>
+            <div>
+                <div style="font-size:13px;font-weight:700;color:var(--text)">Log mileage</div>
+                <div style="font-size:11px;font-weight:500">Record km per client or trip</div>
+            </div>
+            <span style="margin-left:auto;font-size:18px;opacity:0.4">+</span>
+        </button>
+    </div>`;
+
+    return html;
+}
+
+// ── LOG TAB ──
+function renderLog() {
+    const sessions = filteredSessions();
+    let html = `
+    <div class="chip-row">
+        <div class="chip ${S.filter==='month'?'active':''}" onclick="setFilter('month')">This Month</div>
+        <div class="chip ${S.filter==='week'?'active':''}" onclick="setFilter('week')">This Week</div>
+        <div class="chip ${S.filter==='all'?'active':''}" onclick="setFilter('all')">All Time</div>
+    </div>`;
+
+    // merge travel + mileage into one sorted list
+    const fn2 = filterFn();
+    const travelInPeriod = (fn2 ? S.travelSessions.filter(fn2) : S.travelSessions)
+        .map(s => ({ ...s, _type: 'travel', clientId: TRAVEL_ID }));
+    const mileageInPeriod = (fn2 ? S.mileageLog.filter(m => fn2({ start: m.date })) : S.mileageLog)
+        .map(m => ({ ...m, _type: 'mileage', start: m.date }));
+    const allEntries = [...sessions, ...travelInPeriod, ...mileageInPeriod]
+        .sort((a, b) => new Date(b.start) - new Date(a.start));
+
+    if (!allEntries.length) return html + `<div class="empty"><div class="empty-icon">📋</div><p>No sessions yet.<br>Start timing a client<br>to see your log here.</p></div>`;
+
+    for (const group of groupByDate(allEntries)) {
+        const groupTimeSecs = group.sessions.filter(s => s._type !== 'mileage').reduce((sum, s) => s._type === 'mileage' ? sum : sum + sessionSecs(s), 0);
+        const groupKm = group.sessions.filter(s => s._type === 'mileage').reduce((sum, m) => sum + m.km, 0);
+        const groupSummary = [groupTimeSecs > 0 ? fmtHours(groupTimeSecs) : null, groupKm > 0 ? groupKm + ' km' : null].filter(Boolean).join(' · ');
+        html += `<div class="date-group">
+            <div class="date-label"><span>${group.label}</span><span>${groupSummary}</span></div>`;
+        for (const s of group.sessions) {
+            if (s._type === 'mileage') {
+                const c = s.clientId ? getClient(s.clientId) : null;
+                html += `
+                <div class="mileage-session-item">
+                    <div class="session-color-bar" style="background:#7A6AAD"></div>
+                    <div class="session-info">
+                        <div class="session-client-name">🛣️ ${c ? c.name : 'General mileage'}</div>
+                        ${s.note ? `<div class="session-note">📍 ${s.note}</div>` : ''}
+                    </div>
+                    <div style="text-align:right">
+                        <div class="km-badge">${s.km} km</div>
+                    </div>
+                    <button class="session-del" onclick="deleteMileage('${s.id}')" title="Delete">✕</button>
+                </div>`;
+            } else {
+                const isTravel = s.clientId === TRAVEL_ID;
+                const c = isTravel ? null : getClient(s.clientId);
+                const color = isTravel ? '#5B8DB8' : (c?.color || '#aaa');
+                const name  = isTravel ? '🚗 Travel' : (c?.name || 'Unknown');
+                html += `
+                <div class="session-item">
+                    <div class="session-color-bar" style="background:${color}"></div>
+                    <div class="session-info">
+                        <div class="session-client-name">${name}</div>
+                        <div class="session-time-range">${fmtTimeRange(s)}</div>
+                        ${s.note ? `<div class="session-note">📍 ${s.note}</div>` : ''}
+                    </div>
+                    <div class="session-dur">${fmtHours(sessionSecs(s))}</div>
+                    <button class="session-del" onclick="deleteSession('${s.id}',${isTravel})" title="Delete">✕</button>
+                </div>`;
+            }
+        }
+        html += `</div>`;
+    }
+    return html;
+}
+
+// ── REPORT TAB ──
+function renderReport() {
+    const fn = filterFn();
+    const sessions = fn ? S.sessions.filter(fn) : S.sessions;
+    const totalSecs = sessions.reduce((sum, s) => sum + sessionSecs(s), 0);
+
+    let html = `
+    <div class="chip-row">
+        <div class="chip ${S.filter==='month'?'active':''}" onclick="setFilter('month')">This Month</div>
+        <div class="chip ${S.filter==='week'?'active':''}" onclick="setFilter('week')">This Week</div>
+        <div class="chip ${S.filter==='all'?'active':''}" onclick="setFilter('all')">All Time</div>
+    </div>
+    <div class="stats-row">
+        <div class="stat-card"><div class="stat-value">${S.clients.length}</div><div class="stat-label">Clients</div></div>
+        <div class="stat-card"><div class="stat-value">${sessions.length}</div><div class="stat-label">Sessions</div></div>
+        <div class="stat-card"><div class="stat-value">${(totalSecs/3600).toFixed(1)}</div><div class="stat-label">Total hrs</div></div>
+    </div>
+    <div class="section-title" style="margin-bottom:10px">Billing breakdown</div>`;
+
+    const sorted = [...S.clients]
+        .map(c => ({
+            c,
+            secs: clientSecs(c.id, sessions),
+            clientSessions: sessions.filter(s => s.clientId === c.id)
+        }))
+        .sort((a, b) => b.secs - a.secs);
+
+    for (const { c, secs, clientSessions } of sorted) {
+        const clientMileage = (fn ? S.mileageLog.filter(m => fn({ start: m.date })) : S.mileageLog)
+            .filter(m => m.clientId === c.id);
+        const totalKm = clientMileage.reduce((sum, m) => sum + m.km, 0);
+        const sessionCount = clientSessions.length;
+        const mileCount = clientMileage.length;
+        const subLabel = [
+            sessionCount + ' session' + (sessionCount !== 1 ? 's' : ''),
+            mileCount > 0 ? mileCount + ' trip' + (mileCount !== 1 ? 's' : '') : null
+        ].filter(Boolean).join(' · ');
+
+        html += `
+        <div class="report-client-block">
+            <div class="report-client-header">
+                <div class="report-color-bar" style="background:${c.color}"></div>
+                <div class="client-avatar" style="background:${c.color};width:44px;height:44px;font-size:17px;flex-shrink:0">${initials(c.name)}</div>
+                <div class="report-client-header-info">
+                    <div class="report-client-header-name">${c.name}</div>
+                    <div class="report-client-header-count">${subLabel}</div>
+                </div>
+                <div class="report-client-header-total">
+                    <div class="report-client-header-hrs">${(secs/3600).toFixed(2)}</div>
+                    <div class="report-client-header-label">hours</div>
+                    ${totalKm > 0 ? `<div style="font-size:12px;font-weight:700;color:#7A6AAD;margin-top:2px">${totalKm} km</div>` : ''}
+                </div>
+            </div>
+            <div class="report-sessions-list">`;
+
+        if (clientSessions.length === 0 && clientMileage.length === 0) {
+            html += `<div class="report-no-sessions">No activity in this period</div>`;
+        }
+
+        if (clientSessions.length > 0) {
+            html += `<div style="padding:10px 16px 4px 20px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700">Time</div>`;
+            for (const s of clientSessions) {
+                const dur = sessionSecs(s);
+                html += `
+                <div class="report-detail-row">
+                    <div class="report-detail-date">${fmtShortDate(s.start)}</div>
+                    <div class="report-detail-note ${s.note ? '' : 'empty'}">
+                        ${s.note ? '📍 ' + s.note : fmtShortTime(s.start) + ' → ' + fmtShortTime(s.end)}
+                    </div>
+                    <div class="report-detail-dur">${fmtHours(dur)}</div>
+                </div>`;
+            }
+        }
+
+        if (clientMileage.length > 0) {
+            html += `<div class="report-km-total">🛣️ Mileage — ${totalKm} km total</div>`;
+            for (const m of clientMileage) {
+                html += `
+                <div class="report-km-row">
+                    <div class="report-km-date">${fmtShortDate(m.date)}</div>
+                    <div class="report-km-note">${m.note ? '📍 ' + m.note : '—'}</div>
+                    <div class="report-km-dist">${m.km} km</div>
+                </div>`;
+            }
+        }
+
+        html += `</div></div>`;
+    }
+
+    // ── Travel block ──
+    const travelFiltered = fn ? S.travelSessions.filter(fn) : S.travelSessions;
+    const travelTotal = travelFiltered.reduce((sum, s) => sum + sessionSecs(s), 0);
+    if (travelFiltered.length > 0) {
+        html += `
+        <div class="report-client-block">
+            <div class="report-client-header">
+                <div class="report-color-bar" style="background:#5B8DB8"></div>
+                <div class="client-avatar" style="background:#5B8DB8;width:44px;height:44px;font-size:22px;flex-shrink:0">🚗</div>
+                <div class="report-client-header-info">
+                    <div class="report-client-header-name">Travel Time</div>
+                    <div class="report-client-header-count">${travelFiltered.length} trip${travelFiltered.length!==1?'s':''}</div>
+                </div>
+                <div class="report-client-header-total">
+                    <div class="report-client-header-hrs">${(travelTotal/3600).toFixed(2)}</div>
+                    <div class="report-client-header-label">hours</div>
+                </div>
+            </div>
+            <div class="report-sessions-list">
+            ${travelFiltered.map(s => `
+                <div class="report-detail-row">
+                    <div class="report-detail-date">${fmtShortDate(s.start)}</div>
+                    <div class="report-detail-note ${s.note ? '' : 'empty'}">
+                        ${s.note ? '📍 ' + s.note : fmtShortTime(s.start) + ' → ' + fmtShortTime(s.end)}
+                    </div>
+                    <div class="report-detail-dur">${fmtHours(sessionSecs(s))}</div>
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    html += `
+    <div class="export-section">
+        <button class="btn btn-primary btn-block" onclick="exportExcel()">↓&nbsp; Export to Excel for Invoicing</button>
+        <button class="btn btn-outline btn-block" onclick="exportBackup()">↓&nbsp; Download Backup (for other device)</button>
+        <label class="btn btn-outline btn-block" style="cursor:pointer">
+            ↑&nbsp; Import Backup
+            <input type="file" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
+        </label>
+    </div>
+    <div class="sync-note" style="margin-top:14px">
+        <strong>📱 Using on multiple devices?</strong>
+        Export a backup on one device, email it to yourself, then import it on the other. Your data will merge in. Do this at the end of each day to keep both devices in sync.
+    </div>
+    <div class="danger-zone">
+        <div class="danger-zone-label">Reset</div>
+        <button class="btn btn-outline btn-block" style="color:var(--danger);border-color:var(--danger)" onclick="clearAllSessions()">
+            🗑 Clear all sessions &amp; start fresh
+        </button>
+    </div>`;
+
+    return html;
+}
+
+// ── MODAL ──
+function renderModal() {
+    if (S.modal === 'mileage') {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        return `
+        <div class="overlay" onclick="closeModal(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+                <div class="modal-handle"></div>
+                <div class="modal-title">🛣️ Log Mileage</div>
+                <div class="form-group">
+                    <label class="form-label">Client / Project</label>
+                    <select id="mclient" class="form-input" style="cursor:pointer">
+                        <option value="">— General (no specific client) —</option>
+                        ${S.clients.map(c => `<option value="${c.id}" ${S.mileageForm.clientId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Distance (km)</label>
+                    <input id="mkm" class="form-input" type="number" min="0" step="0.1"
+                           placeholder="e.g. 34.5"
+                           value="${S.mileageForm.km}"
+                           onkeydown="if(event.key==='Enter') saveMileage()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Destination / Note</label>
+                    <input id="mnote" class="form-input" type="text"
+                           placeholder="e.g. Hertex showroom, Site visit Sandton"
+                           value="${S.mileageForm.note}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input id="mdate" class="form-input" type="date"
+                           value="${S.mileageForm.date || todayStr}">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-outline" onclick="S.modal=null; render()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveMileage()">Save</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    const isEdit = S.modal === 'edit';
+    return `
+    <div class="overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-handle"></div>
+            <div class="modal-title">${isEdit ? 'Edit Client' : 'New Client'}</div>
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input id="cname" class="form-input" type="text"
+                       placeholder="e.g. The Anderson Project"
+                       value="${S.form.name}"
+                       oninput="S.form.name = this.value"
+                       onkeydown="if(event.key==='Enter') saveClient()">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Colour</label>
+                <div class="color-grid">
+                    ${COLORS.map(col => `
+                    <div class="color-swatch ${S.form.color===col?'picked':''}"
+                         style="background:${col}"
+                         onclick="S.form.color='${col}'; render()"></div>`).join('')}
+                </div>
+            </div>
+            <div class="modal-actions">
+                ${isEdit ? `<button class="btn btn-outline" style="color:var(--danger)" onclick="deleteClient('${S.editId}')">Delete</button>` : ''}
+                <button class="btn btn-outline" onclick="S.modal=null; render()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveClient()">${isEdit ? 'Save' : 'Add'}</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+// EVENTS
+// ═══════════════════════════════════════════
+function handleClientTap(id) {
+    if (S.active?.clientId === id) {
+        stopTimer();
+    } else {
+        startTimer(id);
+    }
+}
+
+function switchTab(t) { S.tab = t; render(); }
+function setFilter(f) { S.filter = f; render(); }
+
+// Long press to edit client (mobile)
+let pressTimer = null;
+document.addEventListener('touchstart', e => {
+    const card = e.target.closest('[data-client-id]');
+    if (!card) return;
+    pressTimer = setTimeout(() => {
+        navigator.vibrate && navigator.vibrate(30);
+        openEdit(card.dataset.clientId);
+    }, 550);
+}, { passive: true });
+document.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
+document.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
+
+// (edit via ✎ button on each card)
+
+// ═══════════════════════════════════════════
+// LIVE TIMER TICK
+// ═══════════════════════════════════════════
+setInterval(() => {
+    // travel tick
+    if (S.travelActive) {
+        const tel = document.getElementById('travel-el');
+        if (tel) tel.textContent = fmtTimer(elapsed(S.travelActive.start));
+    }
+
+    if (!S.active) return;
+    const el = document.getElementById('timer-el');
+    if (el) el.textContent = fmtTimer(elapsed(S.active.start));
+
+    // Also update "today" in client card
+    const ac = document.querySelector('.client-card.is-active .client-today');
+    if (ac) {
+        const e2 = elapsed(S.active.start);
+        const todayBase = clientSecs(S.active.clientId, todaySessions());
+        ac.textContent = 'Today: ' + fmtHours(todayBase + e2);
+    }
+
+    // Update today banner
+    const banner = document.querySelector('.today-banner-value');
+    if (banner) {
+        const allToday = todaySessions().reduce((s, ss) => s + sessionSecs(ss), 0);
+        banner.textContent = fmtHours(allToday + elapsed(S.active.start));
+    }
+}, 1000);
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+load();
+render();
+</script>
+<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js")}</script>
+</body>
+</html>
