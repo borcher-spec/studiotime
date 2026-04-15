@@ -663,6 +663,80 @@
         }
         .danger-zone-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 10px; }
 
+        /* ── SHOPPING ── */
+        .shop-item {
+            background: var(--surface);
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 9px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .shop-item-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .shop-color-bar { width: 4px; min-height: 38px; align-self: stretch; border-radius: 4px; flex-shrink: 0; }
+        .shop-item-info { flex: 1; min-width: 0; }
+        .shop-store { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+        .shop-client-label { font-size: 12px; color: var(--text-muted); }
+        .shop-amounts { text-align: right; }
+        .shop-total { font-size: 17px; font-weight: 800; color: var(--accent); }
+        .shop-fee { font-size: 11px; color: var(--success); font-weight: 600; }
+        .shop-thumb {
+            width: 100%; max-height: 180px; object-fit: cover;
+            border-radius: 10px; margin-top: 8px; cursor: pointer;
+        }
+        .shop-note { font-size: 12px; color: var(--text-muted); margin-top: 5px; font-style: italic; }
+        .shop-date-label { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+        .shop-add-btn {
+            width: 100%; background: var(--accent); color: white;
+            border: none; border-radius: 50px; padding: 15px;
+            font-size: 16px; font-weight: 700; cursor: pointer;
+            margin-bottom: 18px; display: flex; align-items: center;
+            justify-content: center; gap: 8px;
+        }
+        .shop-add-btn:active { opacity: 0.85; transform: scale(0.98); }
+        .shop-summary-card {
+            background: var(--accent-light);
+            border-radius: 14px; padding: 14px 16px;
+            margin-bottom: 16px; border-left: 4px solid var(--accent);
+        }
+        .shop-summary-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+        .shop-summary-row:last-child { margin-bottom: 0; font-weight: 800; font-size: 15px; }
+        .shop-summary-label { color: var(--text-muted); }
+        .shop-summary-value { font-weight: 700; color: var(--accent); }
+        .proc-calc { background: var(--accent-light); border-radius: 10px; padding: 10px 14px; margin-top: 10px; font-size: 13px; color: var(--text); }
+        .proc-calc strong { color: var(--accent); }
+        .photo-upload-area {
+            width: 100%; border: 2px dashed var(--border); border-radius: 13px;
+            padding: 20px; text-align: center; cursor: pointer;
+            color: var(--text-muted); font-size: 14px; transition: border-color 0.2s;
+        }
+        .photo-upload-area:active { border-color: var(--accent); }
+        .photo-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 10px; margin-top: 8px; }
+        .report-shop-block {
+            background: var(--surface); border-radius: 16px;
+            margin-bottom: 20px; overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+        }
+        .report-shop-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 16px; border-bottom: 1px solid var(--border); font-size: 12px;
+        }
+        .report-shop-row:last-child { border-bottom: none; }
+        .report-shop-date { color: var(--text-muted); font-weight: 600; white-space: nowrap; min-width: 72px; }
+        .report-shop-store { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .report-shop-amounts { text-align: right; }
+        .report-shop-cost { font-weight: 700; color: var(--text); font-size: 13px; }
+        .report-shop-fee { font-size: 11px; color: var(--success); font-weight: 600; }
+        .report-shop-total-row {
+            padding: 10px 16px; background: var(--accent-light);
+            display: flex; justify-content: space-between; align-items: center;
+            border-top: 2px solid var(--border); font-weight: 800;
+        }
+
         /* ── SESSION NOTE TAG ── */
         .session-note {
             display: inline-flex;
@@ -716,7 +790,10 @@ let S = {
     modal: null,        // 'add' | 'edit' | 'mileage'
     editId: null,
     form: { name: '', color: COLORS[0] },
-    mileageForm: { clientId: '', km: '', note: '', date: '' }
+    mileageForm: { clientId: '', km: '', note: '', date: '' },
+    shopping: [],  // { id, clientId, date, store, amount, procPercent, note, image }
+    settings: { procPercent: 15 },
+    shopForm: { clientId: '', store: '', amount: '', procPercent: '', note: '', date: '', image: '' }
 };
 
 // ═══════════════════════════════════════════
@@ -733,6 +810,8 @@ function load() {
             if (d.mileageLog) S.mileageLog = d.mileageLog;
             if (d.active !== undefined) S.active = d.active;
             if (d.travelActive !== undefined) S.travelActive = d.travelActive;
+            if (d.shopping) S.shopping = d.shopping;
+            if (d.settings) S.settings = Object.assign(S.settings, d.settings);
         }
     } catch(e) {}
 
@@ -751,7 +830,9 @@ function save() {
         travelSessions: S.travelSessions,
         mileageLog: S.mileageLog,
         active: S.active,
-        travelActive: S.travelActive
+        travelActive: S.travelActive,
+        shopping: S.shopping,
+        settings: S.settings
     }));
 }
 
@@ -1193,15 +1274,241 @@ function closeModal(e) {
 }
 
 // ═══════════════════════════════════════════
+// SHOPPING
+// ═══════════════════════════════════════════
+function openShopModal(id) {
+    if (id) {
+        const item = S.shopping.find(x => x.id === id);
+        if (!item) return;
+        S.shopForm = { ...item };
+        S.modal = 'shop-edit';
+    } else {
+        S.shopForm = {
+            clientId: S.clients[0]?.id || '',
+            store: '', amount: '',
+            procPercent: String(S.settings.procPercent),
+            note: '', date: new Date().toISOString().slice(0,10), image: ''
+        };
+        S.modal = 'shop-add';
+    }
+    render();
+    setTimeout(() => document.getElementById('sh-store')?.focus(), 60);
+}
+
+function saveShopItem() {
+    const store = document.getElementById('sh-store')?.value.trim();
+    const amount = parseFloat(document.getElementById('sh-amount')?.value);
+    const procPercent = parseFloat(document.getElementById('sh-proc')?.value) || S.settings.procPercent;
+    const clientId = document.getElementById('sh-client')?.value || '';
+    const note = document.getElementById('sh-note')?.value.trim() || '';
+    const date = document.getElementById('sh-date')?.value || new Date().toISOString().slice(0,10);
+    if (!store) { showToast('Please enter a store name'); return; }
+    if (!amount || amount <= 0) { showToast('Please enter a valid amount'); return; }
+    const item = { id: S.modal === 'shop-edit' ? S.shopForm.id : uid(), clientId, store, amount, procPercent, note, date: date + 'T12:00:00', image: S.shopForm.image || '' };
+    if (S.modal === 'shop-edit') {
+        S.shopping = S.shopping.map(x => x.id === item.id ? item : x);
+    } else {
+        S.shopping.unshift(item);
+    }
+    S.settings.procPercent = procPercent;
+    S.modal = null;
+    save(); render();
+    showToast(`Purchase at ${store} saved ✓`);
+}
+
+function deleteShopItem(id) {
+    if (!confirm('Remove this purchase?')) return;
+    S.shopping = S.shopping.filter(x => x.id !== id);
+    save(); render();
+}
+
+function handleShopPhoto(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const max = 1000;
+            let w = img.width, h = img.height;
+            if (w > max) { h = Math.round(h * max / w); w = max; }
+            if (h > max) { w = Math.round(w * max / h); h = max; }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            S.shopForm.image = canvas.toDataURL('image/jpeg', 0.7);
+            const preview = document.getElementById('shop-photo-preview');
+            if (preview) { preview.src = S.shopForm.image; preview.style.display = 'block'; }
+            const area = document.getElementById('shop-upload-area');
+            if (area) area.style.display = 'none';
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function updateShopCalc() {
+    const amount = parseFloat(document.getElementById('sh-amount')?.value) || 0;
+    const pct = parseFloat(document.getElementById('sh-proc')?.value) || 0;
+    const fee = amount * pct / 100;
+    const el = document.getElementById('shop-calc');
+    if (el) el.innerHTML = `Goods: <strong>R ${fmtRand(amount)}</strong> &nbsp;+&nbsp; Fee (${pct}%): <strong>R ${fmtRand(fee)}</strong> &nbsp;=&nbsp; Total: <strong>R ${fmtRand(amount + fee)}</strong>`;
+}
+
+function fmtRand(n) {
+    return n.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function shopFilteredItems() {
+    const now = new Date();
+    return S.shopping.filter(item => {
+        const d = new Date(item.date);
+        if (S.filter === 'week') { const wk = new Date(now); wk.setDate(now.getDate()-7); return d >= wk; }
+        if (S.filter === 'month') { return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }
+        return true;
+    });
+}
+
+function renderShopTab() {
+    const items = shopFilteredItems();
+    const totalGoods = items.reduce((s, x) => s + x.amount, 0);
+    const totalFee = items.reduce((s, x) => s + x.amount * x.procPercent / 100, 0);
+
+    let html = `<button class="shop-add-btn" onclick="openShopModal()">🛍️ Add Purchase</button>`;
+
+    // summary
+    if (items.length) {
+        html += `<div class="shop-summary-card">
+            <div class="shop-summary-row"><span class="shop-summary-label">Total goods</span><span class="shop-summary-value">R ${fmtRand(totalGoods)}</span></div>
+            <div class="shop-summary-row"><span class="shop-summary-label">Procurement fees</span><span class="shop-summary-value">R ${fmtRand(totalFee)}</span></div>
+            <div class="shop-summary-row"><span class="shop-summary-label">Total to charge clients</span><span class="shop-summary-value">R ${fmtRand(totalGoods + totalFee)}</span></div>
+        </div>`;
+    }
+
+    // filter chips
+    html += `<div class="chip-row">
+        ${['week','month','all'].map(f => `<button class="chip ${S.filter===f?'active':''}" onclick="S.filter='${f}';render()">${f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join('')}
+    </div>`;
+
+    if (!items.length) {
+        html += `<div class="empty"><div class="empty-icon">🛍️</div><p>No purchases yet.<br>Tap "Add Purchase" to capture your first shopping trip!</p></div>`;
+        return html;
+    }
+
+    // group by date
+    const grouped = {};
+    items.forEach(item => {
+        const d = item.date.slice(0,10);
+        if (!grouped[d]) grouped[d] = [];
+        grouped[d].push(item);
+    });
+
+    Object.keys(grouped).sort((a,b) => b.localeCompare(a)).forEach(date => {
+        const dayItems = grouped[date];
+        const dayGoods = dayItems.reduce((s,x) => s+x.amount, 0);
+        html += `<div class="date-label"><span>${fmtDateLabel(date)}</span><span>R ${fmtRand(dayGoods)} goods</span></div>`;
+        dayItems.forEach(item => {
+            const client = S.clients.find(c => c.id === item.clientId);
+            const fee = item.amount * item.procPercent / 100;
+            html += `<div class="shop-item">
+                <div class="shop-item-header">
+                    <div class="shop-color-bar" style="background:${client?.color || '#ccc'}"></div>
+                    <div class="shop-item-info">
+                        <div class="shop-store">${item.store}</div>
+                        <div class="shop-client-label">${client?.name || 'No client'}</div>
+                        ${item.note ? `<div class="shop-note">${item.note}</div>` : ''}
+                    </div>
+                    <div class="shop-amounts">
+                        <div class="shop-total">R ${fmtRand(item.amount)}</div>
+                        <div class="shop-fee">+R ${fmtRand(fee)} fee</div>
+                    </div>
+                    <button class="session-del" onclick="openShopModal('${item.id}')">✎</button>
+                    <button class="session-del" onclick="deleteShopItem('${item.id}')">🗑</button>
+                </div>
+                ${item.image ? `<img class="shop-thumb" src="${item.image}" onclick="viewShopPhoto('${item.id}')">` : ''}
+            </div>`;
+        });
+    });
+    return html;
+}
+
+function viewShopPhoto(id) {
+    const item = S.shopping.find(x => x.id === id);
+    if (!item?.image) return;
+    const w = window.open('');
+    w.document.write(`<img src="${item.image}" style="max-width:100%;height:auto">`);
+}
+
+function renderShopModal() {
+    const isEdit = S.modal === 'shop-edit';
+    const f = S.shopForm;
+    const clientOptions = S.clients.map(c => `<option value="${c.id}" ${f.clientId===c.id?'selected':''}>${c.name}</option>`).join('');
+    return `<div class="overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-handle"></div>
+            <div class="modal-title">${isEdit?'Edit Purchase':'Add Purchase'}</div>
+            <div class="form-group">
+                <label class="form-label">Client</label>
+                <select class="form-input" id="sh-client"><option value="">— No client —</option>${clientOptions}</select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Store / Supplier</label>
+                <input class="form-input" id="sh-store" placeholder="e.g. Weylandts" value="${f.store||''}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Amount Spent (R)</label>
+                <input class="form-input" id="sh-amount" type="number" placeholder="0.00" value="${f.amount||''}" oninput="updateShopCalc()">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Procurement % (your fee)</label>
+                <input class="form-input" id="sh-proc" type="number" placeholder="${S.settings.procPercent}" value="${f.procPercent||S.settings.procPercent}" oninput="updateShopCalc()">
+            </div>
+            <div class="proc-calc" id="shop-calc">Enter amount and % above to see calculation</div>
+            <div class="form-group" style="margin-top:14px">
+                <label class="form-label">Date</label>
+                <input class="form-input" id="sh-date" type="date" value="${f.date||new Date().toISOString().slice(0,10)}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Note (optional)</label>
+                <input class="form-input" id="sh-note" placeholder="e.g. Dining chairs for lounge" value="${f.note||''}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Slip / Invoice Photo</label>
+                ${f.image
+                    ? `<img id="shop-photo-preview" class="photo-preview" src="${f.image}"><br><button class="btn btn-outline" style="margin-top:8px;font-size:13px;padding:8px 16px" onclick="S.shopForm.image='';render()">Remove photo</button>`
+                    : `<div class="photo-upload-area" id="shop-upload-area" onclick="document.getElementById('sh-photo').click()">📷 Tap to take photo or upload slip</div>
+                       <img id="shop-photo-preview" class="photo-preview" style="display:none">`
+                }
+                <input type="file" id="sh-photo" accept="image/*" capture="environment" style="display:none" onchange="handleShopPhoto(this)">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="S.modal=null;render()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveShopItem()">${isEdit?'Save Changes':'Add Purchase'}</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function fmtDateLabel(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+    if (dateStr === today.toISOString().slice(0,10)) return 'Today';
+    if (dateStr === yesterday.toISOString().slice(0,10)) return 'Yesterday';
+    return d.toLocaleDateString('en-ZA', { weekday:'short', day:'numeric', month:'short' });
+}
+
+// ═══════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════
 function render() {
     document.getElementById('app').innerHTML =
         renderHeader() +
         `<div class="main tab-content">` +
-        (S.tab === 'timer' ? renderTimer() : '') +
-        (S.tab === 'log'   ? renderLog()   : '') +
-        (S.tab === 'report'? renderReport(): '') +
+        (S.tab === 'timer'  ? renderTimer()   : '') +
+        (S.tab === 'log'    ? renderLog()     : '') +
+        (S.tab === 'report' ? renderReport()  : '') +
+        (S.tab === 'shop'   ? renderShopTab() : '') +
         `</div>` +
         renderTabBar() +
         (S.modal ? renderModal() : '');
@@ -1212,6 +1519,7 @@ function renderHeader() {
     let rightBtn = '';
     if (S.tab === 'timer')  rightBtn = `<button class="header-btn" onclick="openAdd()">+ Client</button>`;
     if (S.tab === 'report') rightBtn = `<button class="header-btn" onclick="exportExcel()">Export Excel</button>`;
+    if (S.tab === 'shop')   rightBtn = `<button class="header-btn" onclick="openShopModal()">+ Purchase</button>`;
     return `
     <div class="header">
         <div class="header-left">
@@ -1228,6 +1536,7 @@ function renderTabBar() {
         { id: 'timer',  label: 'Timer',  svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><polyline points="12 7 12 12 15.5 14"/></svg>` },
         { id: 'log',    label: 'Log',    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>` },
         { id: 'report', label: 'Report', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
+        { id: 'shop',   label: 'Shop',   svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>` },
     ];
     return `<nav class="tab-bar">
         ${tabs.map(t => `
@@ -1552,6 +1861,52 @@ function renderReport() {
         <strong>📱 Using on multiple devices?</strong>
         Export a backup on one device, email it to yourself, then import it on the other. Your data will merge in. Do this at the end of each day to keep both devices in sync.
     </div>
+
+    <!-- Shopping Report -->
+    ${(() => {
+        const shopItems = shopFilteredItems();
+        if (!shopItems.length) return '';
+        const clientIds = [...new Set(shopItems.map(x => x.clientId))];
+        let sh = `<div class="section-header" style="margin-top:24px"><span class="section-title">🛍️ Procurement</span></div>`;
+        clientIds.forEach(cid => {
+            const client = S.clients.find(c => c.id === cid);
+            const items = shopItems.filter(x => x.clientId === cid);
+            const totalGoods = items.reduce((s,x) => s + x.amount, 0);
+            const totalFee = items.reduce((s,x) => s + x.amount * x.procPercent / 100, 0);
+            sh += `<div class="report-shop-block">
+                <div class="report-client-header">
+                    <div class="report-color-bar" style="background:${client?.color||'#ccc'}"></div>
+                    <div class="client-avatar" style="background:${client?.color||'#ccc'};width:44px;height:44px;font-size:16px;font-weight:800;flex-shrink:0">${(client?.name||'?').slice(0,2).toUpperCase()}</div>
+                    <div class="report-client-header-info">
+                        <div class="report-client-header-name">${client?.name||'Unassigned'}</div>
+                        <div class="report-client-header-count">${items.length} purchase${items.length!==1?'s':''}</div>
+                    </div>
+                    <div class="report-client-header-total">
+                        <div class="report-client-header-hrs" style="font-size:18px">R ${fmtRand(totalGoods+totalFee)}</div>
+                        <div class="report-client-header-label">to charge</div>
+                    </div>
+                </div>
+                <div class="report-sessions-list">
+                ${items.map(item => {
+                    const fee = item.amount * item.procPercent / 100;
+                    return `<div class="report-shop-row">
+                        <div class="report-shop-date">${fmtDateLabel(item.date.slice(0,10))}</div>
+                        <div class="report-shop-store">${item.store}${item.note?` — ${item.note}`:''}</div>
+                        <div class="report-shop-amounts">
+                            <div class="report-shop-cost">R ${fmtRand(item.amount)}</div>
+                            <div class="report-shop-fee">+R ${fmtRand(fee)} (${item.procPercent}%)</div>
+                        </div>
+                    </div>`;
+                }).join('')}
+                <div class="report-shop-total-row">
+                    <span style="color:var(--text-muted);font-size:13px">Goods R ${fmtRand(totalGoods)} + Fees R ${fmtRand(totalFee)}</span>
+                    <span style="color:var(--accent)">R ${fmtRand(totalGoods+totalFee)}</span>
+                </div>
+                </div>
+            </div>`;
+        });
+        return sh;
+    })()}
     <div class="danger-zone">
         <div class="danger-zone-label">Reset</div>
         <button class="btn btn-outline btn-block" style="color:var(--danger);border-color:var(--danger)" onclick="clearAllSessions()">
@@ -1564,6 +1919,7 @@ function renderReport() {
 
 // ── MODAL ──
 function renderModal() {
+    if (S.modal === 'shop-add' || S.modal === 'shop-edit') return renderShopModal();
     if (S.modal === 'mileage') {
         const todayStr = new Date().toISOString().slice(0, 10);
         return `
