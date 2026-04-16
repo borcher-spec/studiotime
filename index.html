@@ -1,3 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="StudioTime">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>Studio Time</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --bg: #F5F2EE;
+            --surface: #FFFFFF;
+            --primary: #2D2926;
+            --accent: #B8936A;
+            --accent-light: #F2EBE1;
+            --text: #2D2926;
+            --text-muted: #9B8B7E;
+            --border: #E5DDD5;
+            --success: #5A8A6A;
+            --danger: #B84040;
+            --tab-h: 64px;
+            --header-h: 68px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
             max-width: 500px;
             margin: 0 auto;
         }
@@ -627,6 +663,23 @@
         }
         .danger-zone-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 10px; }
 
+        /* ── MANUAL LOG BUTTON ── */
+        .log-manual-btn {
+            margin-top: 8px;
+            width: 100%;
+            background: var(--accent-light);
+            border: 1.5px solid var(--accent);
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            cursor: pointer;
+            letter-spacing: 0.3px;
+            transition: all 0.15s;
+        }
+        .log-manual-btn:active { background: var(--accent); color: white; }
+
         /* ── SHOPPING ── */
         .shop-item {
             background: var(--surface);
@@ -755,6 +808,7 @@ let S = {
     editId: null,
     form: { name: '', color: COLORS[0] },
     mileageForm: { clientId: '', km: '', note: '', date: '' },
+    manualForm: { clientId: '', date: '', hours: '', minutes: '0', note: '' },
     shopping: [],  // { id, clientId, date, store, amount, procPercent, note, image }
     settings: { procPercent: 15 },
     shopForm: { clientId: '', store: '', amount: '', procPercent: '', note: '', date: '', image: '' }
@@ -1238,6 +1292,95 @@ function closeModal(e) {
 }
 
 // ═══════════════════════════════════════════
+// MANUAL TIME ENTRY
+// ═══════════════════════════════════════════
+function openManualEntry(clientId) {
+    S.manualForm = {
+        clientId: clientId || S.clients[0]?.id || '',
+        date: new Date().toISOString().slice(0,10),
+        hours: '', minutes: '0', note: ''
+    };
+    S.modal = 'manual';
+    render();
+    setTimeout(() => document.getElementById('man-hours')?.focus(), 60);
+}
+
+function saveManualEntry() {
+    const hours   = parseInt(document.getElementById('man-hours')?.value) || 0;
+    const minutes = parseInt(document.getElementById('man-minutes')?.value) || 0;
+    const note    = document.getElementById('man-note')?.value.trim() || '';
+    const clientId = document.getElementById('man-client')?.value || '';
+    const date    = document.getElementById('man-date')?.value || new Date().toISOString().slice(0,10);
+    const totalSecs = hours * 3600 + minutes * 60;
+    if (totalSecs < 60) { showToast('Please enter at least 1 minute'); return; }
+    if (!clientId) { showToast('Please select a client'); return; }
+    const start = new Date(date + 'T09:00:00');
+    const end   = new Date(start.getTime() + totalSecs * 1000);
+    S.sessions.unshift({
+        id: uid(),
+        clientId,
+        start: start.toISOString(),
+        end:   end.toISOString(),
+        note:  note,
+        manual: true
+    });
+    S.modal = null;
+    save(); render();
+    const h = hours > 0 ? `${hours}h ` : '';
+    const m = minutes > 0 ? `${minutes}min` : '';
+    showToast(`${h}${m} logged for ${getClient(clientId)?.name} ✓`);
+}
+
+function renderManualModal() {
+    const f = S.manualForm;
+    const clientOptions = S.clients.map(c =>
+        `<option value="${c.id}" ${f.clientId===c.id?'selected':''}>${c.name}</option>`
+    ).join('');
+    return `<div class="overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-handle"></div>
+            <div class="modal-title">⏱ Log Hours Manually</div>
+            <div class="form-group">
+                <label class="form-label">Client</label>
+                <select class="form-input" id="man-client">${clientOptions}</select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Date</label>
+                <input class="form-input" id="man-date" type="date" value="${f.date}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Time Spent</label>
+                <div style="display:flex;gap:10px;align-items:center">
+                    <div style="flex:1">
+                        <input class="form-input" id="man-hours" type="number" min="0" max="24"
+                            placeholder="0" value="${f.hours}" style="text-align:center">
+                        <div style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:4px">HOURS</div>
+                    </div>
+                    <div style="font-size:24px;color:var(--text-muted);padding-bottom:18px">:</div>
+                    <div style="flex:1">
+                        <input class="form-input" id="man-minutes" type="number" min="0" max="59"
+                            placeholder="0" value="${f.minutes}" style="text-align:center">
+                        <div style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:4px">MINUTES</div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">What did you do? (optional)</label>
+                <input class="form-input" id="man-note" placeholder="e.g. Client emails &amp; calls"
+                    value="${f.note}">
+            </div>
+            <div class="proc-calc">
+                💡 This will appear in your Log and Report just like a timed session, marked as <strong>manual</strong>.
+            </div>
+            <div class="modal-actions" style="margin-top:18px">
+                <button class="btn btn-outline" onclick="S.modal=null;render()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveManualEntry()">Log Hours</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
 // SHOPPING
 // ═══════════════════════════════════════════
 function openShopModal(id) {
@@ -1586,44 +1729,6 @@ function renderTimer() {
 
     html += `</div>`;
 
-    // ── Travel section ──
-    const ta = S.travelActive;
-    const travelElap = ta ? elapsed(ta.start) : 0;
-    const travelToday = S.travelSessions
-        .filter(s => new Date(s.start).toDateString() === new Date().toDateString())
-        .reduce((sum, s) => sum + sessionSecs(s), 0);
-
-    html += `<div class="travel-section">
-        <div class="section-header" style="margin-bottom:10px">
-            <div class="section-title">Travel time</div>
-            ${travelToday > 0 ? `<div style="font-size:11px;color:var(--text-muted)">Today: ${fmtHours(travelToday + (ta ? travelElap : 0))}</div>` : ''}
-        </div>
-        <div class="travel-card ${ta ? 'is-active' : ''}" onclick="toggleTravel()">
-            <div class="travel-icon">🚗</div>
-            <div class="travel-info">
-                <div class="travel-name">${ta ? 'Travelling…' : 'Start travel timer'}</div>
-                <div class="travel-sub">${ta ? 'Tap to stop' : 'Tap to begin tracking'}</div>
-            </div>
-            ${ta
-                ? `<div style="display:flex;align-items:center"><div class="travel-dot"></div><div class="travel-timer" id="travel-el">${fmtTimer(travelElap)}</div></div>`
-                : (travelToday > 0 ? `<div style="font-size:14px;font-weight:700;color:var(--accent)">${fmtHours(travelToday)}</div>` : '')
-            }
-        </div>
-        ${ta ? `<div style="margin-top:10px">
-            <input id="active-note-travel" class="note-input" type="text"
-                   placeholder="📍 Where are you travelling to?"
-                   value="${ta.note || ''}">
-        </div>` : ''}
-        <button class="mileage-log-btn" onclick="openMileageModal()">
-            <span style="font-size:20px">🛣️</span>
-            <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text)">Log mileage</div>
-                <div style="font-size:11px;font-weight:500">Record km per client or trip</div>
-            </div>
-            <span style="margin-left:auto;font-size:18px;opacity:0.4">+</span>
-        </button>
-    </div>`;
-
     return html;
 }
 
@@ -1631,6 +1736,21 @@ function renderTimer() {
 function renderLog() {
     const sessions = filteredSessions();
     let html = `
+    <button class="mileage-log-btn" onclick="openManualEntry()" style="margin-top:0;margin-bottom:8px">
+        <span style="font-size:20px">✏️</span>
+        <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">Log hours manually</div>
+            <div style="font-size:11px;font-weight:500">For calls, emails &amp; off-timer work</div>
+        </div>
+    </button>
+    <button class="mileage-log-btn" onclick="openMileageModal()" style="margin-top:0;margin-bottom:10px">
+        <span style="font-size:20px">🛣️</span>
+        <div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">Log mileage</div>
+            <div style="font-size:11px;font-weight:500">Record km per client or trip</div>
+        </div>
+        <span style="margin-left:auto;font-size:18px;opacity:0.4">+</span>
+    </button>
     <div class="chip-row">
         <div class="chip ${S.filter==='month'?'active':''}" onclick="setFilter('month')">This Month</div>
         <div class="chip ${S.filter==='week'?'active':''}" onclick="setFilter('week')">This Week</div>
@@ -1679,7 +1799,7 @@ function renderLog() {
                     <div class="session-color-bar" style="background:${color}"></div>
                     <div class="session-info">
                         <div class="session-client-name">${name}</div>
-                        <div class="session-time-range">${fmtTimeRange(s)}</div>
+                        <div class="session-time-range">${s.manual ? '✏️ Manual entry' : fmtTimeRange(s)}</div>
                         ${s.note ? `<div class="session-note">📍 ${s.note}</div>` : ''}
                     </div>
                     <div class="session-dur">${fmtHours(sessionSecs(s))}</div>
@@ -1884,6 +2004,7 @@ function renderReport() {
 // ── MODAL ──
 function renderModal() {
     if (S.modal === 'shop-add' || S.modal === 'shop-edit') return renderShopModal();
+    if (S.modal === 'manual') return renderManualModal();
     if (S.modal === 'mileage') {
         const todayStr = new Date().toISOString().slice(0, 10);
         return `
