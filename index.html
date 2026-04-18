@@ -469,6 +469,33 @@
         .today-banner-label { color: var(--text-muted); font-weight: 600; }
         .today-banner-value { font-weight: 800; color: var(--accent); font-size: 16px; }
 
+        /* ── CLIENT DETAIL VIEW ── */
+        .client-detail-back {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 14px; font-weight: 700; color: var(--accent);
+            cursor: pointer; padding: 6px 0 14px 0;
+        }
+        .client-detail-back:active { opacity: 0.6; }
+        .client-detail-header {
+            display: flex; align-items: center; gap: 14px;
+            background: var(--surface); border-radius: 16px;
+            padding: 18px 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+        }
+
+        /* ── RUNNING STRIP ── */
+        .running-strip {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            margin-bottom: 4px;
+        }
+        .running-chip {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: #F0F8F2; border: 1.5px solid var(--success);
+            border-radius: 20px; padding: 6px 14px;
+            font-size: 13px; color: var(--text); cursor: pointer;
+        }
+        .running-chip:active { opacity: 0.7; }
+
         /* ── NOTE INPUT ── */
         .note-wrap { margin-top: 16px; }
         .note-input {
@@ -791,6 +818,8 @@ const COLORS = [
 ];
 const STORE_KEY = 'studioTime_v2';
 const TRAVEL_ID = '__travel__';
+let showArchivedTimer = false;
+let showArchivedReport = false;
 
 // ═══════════════════════════════════════════
 // STATE
@@ -800,8 +829,10 @@ let S = {
     sessions: [],       // client sessions
     travelSessions: [], // travel sessions
     mileageLog: [],     // { id, clientId|null, date: ISO, km: number, note: string }
-    active: null,       // { clientId, start: ISO, note: string }
+    active: null,       // legacy — migrated to actives on load
+    actives: {},        // { [clientId]: { start: ISO, note: string } }
     travelActive: null, // { start: ISO, note: string }
+    clientView: null,   // clientId of detail view, or null for grid
     tab: 'timer',
     filter: 'month',    // 'week' | 'month' | 'all'
     modal: null,        // 'add' | 'edit' | 'mileage'
@@ -809,9 +840,9 @@ let S = {
     form: { name: '', color: COLORS[0] },
     mileageForm: { clientId: '', km: '', note: '', date: '' },
     manualForm: { clientId: '', date: '', hours: '', minutes: '0', note: '' },
-    shopping: [],  // { id, clientId, date, store, amount, procPercent, note, image }
+    shopping: [],  // { id, clientId, date, store, amount, procPercent, note, image, invoiceRef, paymentProof }
     settings: { procPercent: 15 },
-    shopForm: { clientId: '', store: '', amount: '', procPercent: '', note: '', date: '', image: '' }
+    shopForm: { clientId: '', store: '', amount: '', procPercent: '', note: '', date: '', image: '', invoiceRef: '', paymentProof: '' }
 };
 
 // ═══════════════════════════════════════════
@@ -826,7 +857,9 @@ function load() {
             if (d.sessions) S.sessions = d.sessions;
             if (d.travelSessions) S.travelSessions = d.travelSessions;
             if (d.mileageLog) S.mileageLog = d.mileageLog;
-            if (d.active !== undefined) S.active = d.active;
+            if (d.actives) S.actives = d.actives;
+            // migrate legacy single-timer format
+            else if (d.active) S.actives[d.active.clientId] = { start: d.active.start, note: d.active.note || '' };
             if (d.travelActive !== undefined) S.travelActive = d.travelActive;
             if (d.shopping) S.shopping = d.shopping;
             if (d.settings) S.settings = Object.assign(S.settings, d.settings);
@@ -847,7 +880,7 @@ function save() {
         sessions: S.sessions,
         travelSessions: S.travelSessions,
         mileageLog: S.mileageLog,
-        active: S.active,
+        actives: S.actives,
         travelActive: S.travelActive,
         shopping: S.shopping,
         settings: S.settings
@@ -862,35 +895,37 @@ function uid() {
 // TIMER
 // ═══════════════════════════════════════════
 function startTimer(clientId) {
-    const carriedNote = readNoteInput();  // carry note when switching clients
-    if (S.active) { S.active.note = carriedNote; finishSession(); }
-    S.active = { clientId, start: new Date().toISOString(), note: carriedNote };
+    if (S.actives[clientId]) return; // already running
+    S.actives[clientId] = { start: new Date().toISOString(), note: '' };
     save(); render();
 }
 
-function stopTimer() {
-    if (S.active) S.active.note = readNoteInput();
-    finishSession();
+function stopTimer(clientId) {
+    if (!S.actives[clientId]) return;
+    const noteEl = document.getElementById('active-note-' + clientId);
+    if (noteEl) S.actives[clientId].note = noteEl.value;
+    finishSession(clientId);
     save(); render();
 }
 
-function finishSession() {
-    if (!S.active) return;
-    const dur = elapsed(S.active.start);
-    if (dur < 2) { S.active = null; return; } // ignore accidental sub-2s
+function finishSession(clientId) {
+    const timer = S.actives[clientId];
+    if (!timer) return;
+    const dur = elapsed(timer.start);
+    if (dur < 2) { delete S.actives[clientId]; return; } // ignore accidental sub-2s
     S.sessions.unshift({
         id: uid(),
-        clientId: S.active.clientId,
-        start: S.active.start,
+        clientId,
+        start: timer.start,
         end: new Date().toISOString(),
-        note: S.active.note || ''
+        note: timer.note || ''
     });
-    S.active = null;
+    delete S.actives[clientId];
 }
 
-function readNoteInput() {
-    const el = document.getElementById('active-note');
-    return el ? el.value : (S.active?.note || '');
+function readNoteInput(clientId) {
+    const el = document.getElementById('active-note-' + clientId);
+    return el ? el.value : (S.actives[clientId]?.note || '');
 }
 
 // ── TRAVEL TIMER ──
@@ -917,7 +952,7 @@ function toggleTravel() {
 // ── MILEAGE ──
 function openMileageModal() {
     S.mileageForm = {
-        clientId: S.active?.clientId || '',
+        clientId: Object.keys(S.actives)[0] || '',
         km: '',
         note: '',
         date: new Date().toISOString().slice(0, 10)
@@ -953,14 +988,15 @@ function deleteMileage(id) {
 
 // ── RESET ──
 function clearAllSessions() {
-    if (!confirm('This will permanently delete ALL recorded sessions, mileage entries, and travel for all clients. Your client list will be kept.\n\nAre you sure?')) return;
+    if (!confirm('This will permanently delete ALL recorded sessions, mileage entries, travel, and purchases for all clients. Your client list will be kept.\n\nAre you sure?')) return;
     S.sessions = [];
     S.travelSessions = [];
     S.mileageLog = [];
-    S.active = null;
+    S.shopping = [];
+    S.actives = {};
     S.travelActive = null;
     save(); render();
-    showToast('All sessions cleared ✓');
+    showToast('All sessions and purchases cleared ✓');
 }
 
 function elapsed(startISO) {
@@ -1185,7 +1221,7 @@ function exportExcel() {
 }
 
 function exportBackup() {
-    const json = JSON.stringify({ clients: S.clients, sessions: S.sessions, active: S.active }, null, 2);
+    const json = JSON.stringify({ clients: S.clients, sessions: S.sessions, actives: S.actives }, null, 2);
     download(`studio-backup-${new Date().toISOString().slice(0,10)}.json`, json, 'application/json');
 }
 
@@ -1207,7 +1243,8 @@ function importBackup(file) {
             if (d.sessions) S.sessions = d.sessions;
             if (d.travelSessions) S.travelSessions = d.travelSessions;
             if (d.mileageLog) S.mileageLog = d.mileageLog;
-            if (d.active !== undefined) S.active = d.active;
+            if (d.actives) S.actives = d.actives;
+            else if (d.active) S.actives[d.active.clientId] = { start: d.active.start, note: d.active.note || '' };
             if (d.travelActive !== undefined) S.travelActive = d.travelActive;
             save(); render();
             showToast('Data imported ✓');
@@ -1270,9 +1307,27 @@ function deleteClient(id) {
     if (!confirm(`Delete this client and all ${S.sessions.filter(s=>s.clientId===id).length} session(s)?`)) return;
     S.clients = S.clients.filter(c => c.id !== id);
     S.sessions = S.sessions.filter(s => s.clientId !== id);
-    if (S.active?.clientId === id) S.active = null;
+    delete S.actives[id];
     S.modal = null;
     save(); render();
+}
+
+function archiveClient(id) {
+    const c = getClient(id);
+    if (!c) return;
+    c.archived = true;
+    delete S.actives[id];
+    S.modal = null;
+    save(); render();
+    showToast('Project marked complete ✓');
+}
+
+function restoreClient(id) {
+    const c = getClient(id);
+    if (!c) return;
+    c.archived = false;
+    save(); render();
+    showToast('Client restored to active ✓');
 }
 
 function deleteSession(id, isTravel) {
@@ -1394,7 +1449,8 @@ function openShopModal(id) {
             clientId: S.clients[0]?.id || '',
             store: '', amount: '',
             procPercent: String(S.settings.procPercent),
-            note: '', date: new Date().toISOString().slice(0,10), image: ''
+            note: '', date: new Date().toISOString().slice(0,10), image: '',
+            invoiceRef: '', paymentProof: ''
         };
         S.modal = 'shop-add';
     }
@@ -1409,9 +1465,10 @@ function saveShopItem() {
     const clientId = document.getElementById('sh-client')?.value || '';
     const note = document.getElementById('sh-note')?.value.trim() || '';
     const date = document.getElementById('sh-date')?.value || new Date().toISOString().slice(0,10);
+    const invoiceRef = document.getElementById('sh-invoice-ref')?.value.trim() || '';
     if (!store) { showToast('Please enter a store name'); return; }
     if (!amount || amount <= 0) { showToast('Please enter a valid amount'); return; }
-    const item = { id: S.modal === 'shop-edit' ? S.shopForm.id : uid(), clientId, store, amount, procPercent, note, date: date + 'T12:00:00', image: S.shopForm.image || '' };
+    const item = { id: S.modal === 'shop-edit' ? S.shopForm.id : uid(), clientId, store, amount, procPercent, note, date: date + 'T12:00:00', image: S.shopForm.image || '', invoiceRef, paymentProof: S.shopForm.paymentProof || '' };
     if (S.modal === 'shop-edit') {
         S.shopping = S.shopping.map(x => x.id === item.id ? item : x);
     } else {
@@ -1447,6 +1504,31 @@ function handleShopPhoto(input) {
             const preview = document.getElementById('shop-photo-preview');
             if (preview) { preview.src = S.shopForm.image; preview.style.display = 'block'; }
             const area = document.getElementById('shop-upload-area');
+            if (area) area.style.display = 'none';
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function handlePaymentProofPhoto(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const max = 1000;
+            let w = img.width, h = img.height;
+            if (w > max) { h = Math.round(h * max / w); w = max; }
+            if (h > max) { w = Math.round(w * max / h); h = max; }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            S.shopForm.paymentProof = canvas.toDataURL('image/jpeg', 0.7);
+            const preview = document.getElementById('payment-proof-preview');
+            if (preview) { preview.src = S.shopForm.paymentProof; preview.style.display = 'block'; }
+            const area = document.getElementById('payment-proof-upload-area');
             if (area) area.style.display = 'none';
         };
         img.src = e.target.result;
@@ -1521,8 +1603,9 @@ function renderShopTab() {
                 <div class="shop-item-header">
                     <div class="shop-color-bar" style="background:${client?.color || '#ccc'}"></div>
                     <div class="shop-item-info">
-                        <div class="shop-store">${item.store}</div>
+                        <div class="shop-store">${item.store}${item.paymentProof ? ' <span style="font-size:12px" title="Payment proof attached">💳</span>' : ''}</div>
                         <div class="shop-client-label">${client?.name || 'No client'}</div>
+                        ${item.invoiceRef ? `<div class="shop-note" style="color:var(--text-muted);font-size:11px">Ref: ${item.invoiceRef}</div>` : ''}
                         ${item.note ? `<div class="shop-note">${item.note}</div>` : ''}
                     </div>
                     <div class="shop-amounts">
@@ -1533,6 +1616,7 @@ function renderShopTab() {
                     <button class="session-del" onclick="deleteShopItem('${item.id}')">🗑</button>
                 </div>
                 ${item.image ? `<img class="shop-thumb" src="${item.image}" onclick="viewShopPhoto('${item.id}')">` : ''}
+                ${item.paymentProof ? `<img class="shop-thumb" src="${item.paymentProof}" onclick="viewPaymentProof('${item.id}')" style="margin-top:4px;opacity:0.85" title="Payment confirmation">` : ''}
             </div>`;
         });
     });
@@ -1544,6 +1628,13 @@ function viewShopPhoto(id) {
     if (!item?.image) return;
     const w = window.open('');
     w.document.write(`<img src="${item.image}" style="max-width:100%;height:auto">`);
+}
+
+function viewPaymentProof(id) {
+    const item = S.shopping.find(x => x.id === id);
+    if (!item?.paymentProof) return;
+    const w = window.open('');
+    w.document.write(`<img src="${item.paymentProof}" style="max-width:100%;height:auto">`);
 }
 
 function renderShopModal() {
@@ -1560,7 +1651,11 @@ function renderShopModal() {
             </div>
             <div class="form-group">
                 <label class="form-label">Store / Supplier</label>
-                <input class="form-input" id="sh-store" placeholder="e.g. Weylandts" value="${f.store||''}">
+                <input class="form-input" id="sh-store" placeholder="e.g. Ital Tile" value="${f.store||''}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Invoice / Quote Ref <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+                <input class="form-input" id="sh-invoice-ref" placeholder="e.g. ITL-2024-00482" value="${f.invoiceRef||''}">
             </div>
             <div class="form-group">
                 <label class="form-label">Amount Spent (R)</label>
@@ -1580,13 +1675,22 @@ function renderShopModal() {
                 <input class="form-input" id="sh-note" placeholder="e.g. Dining chairs for lounge" value="${f.note||''}">
             </div>
             <div class="form-group">
-                <label class="form-label">Slip / Invoice Photo</label>
+                <label class="form-label">Invoice / Slip Photo</label>
                 ${f.image
                     ? `<img id="shop-photo-preview" class="photo-preview" src="${f.image}"><br><button class="btn btn-outline" style="margin-top:8px;font-size:13px;padding:8px 16px" onclick="S.shopForm.image='';render()">Remove photo</button>`
-                    : `<div class="photo-upload-area" id="shop-upload-area" onclick="document.getElementById('sh-photo').click()">📷 Tap to take photo or upload slip</div>
+                    : `<div class="photo-upload-area" id="shop-upload-area" onclick="document.getElementById('sh-photo').click()">📷 Tap to take photo or upload invoice</div>
                        <img id="shop-photo-preview" class="photo-preview" style="display:none">`
                 }
                 <input type="file" id="sh-photo" accept="image/*" capture="environment" style="display:none" onchange="handleShopPhoto(this)">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Payment Confirmation <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+                ${f.paymentProof
+                    ? `<img id="payment-proof-preview" class="photo-preview" src="${f.paymentProof}"><br><button class="btn btn-outline" style="margin-top:8px;font-size:13px;padding:8px 16px" onclick="S.shopForm.paymentProof='';render()">Remove photo</button>`
+                    : `<div class="photo-upload-area" id="payment-proof-upload-area" onclick="document.getElementById('sh-payment-proof').click()">💳 Tap to add payment screenshot</div>
+                       <img id="payment-proof-preview" class="photo-preview" style="display:none">`
+                }
+                <input type="file" id="sh-payment-proof" accept="image/*" capture="environment" style="display:none" onchange="handlePaymentProofPhoto(this)">
             </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="S.modal=null;render()">Cancel</button>
@@ -1655,60 +1759,91 @@ function renderTabBar() {
 
 // ── TIMER TAB ──
 function renderTimer() {
-    const active = S.active;
-    const ac = active ? getClient(active.clientId) : null;
-    const elap = active ? elapsed(active.start) : 0;
-    const todayArr = todaySessions();
-    const todayTotal = todayArr.reduce((sum, s) => sum + sessionSecs(s), 0) + (active ? elap : 0);
+    // ── CLIENT DETAIL VIEW ──
+    if (S.clientView) {
+        const c = getClient(S.clientView);
+        if (!c) { S.clientView = null; return renderTimer(); }
+        const timer = S.actives[c.id];
+        const elap = timer ? elapsed(timer.start) : 0;
+        const todayArr = todaySessions();
+        const todaySec = clientSecs(c.id, todayArr) + (timer ? elap : 0);
 
-    let html = '';
-
-    // Active timer card
-    if (active && ac) {
-        html += `
-        <div class="card timer-card">
-            <div class="timer-status"><div class="dot-pulse"></div>Tracking</div>
-            <div class="timer-client-name">${ac.name}</div>
-            <div class="timer-digits" id="timer-el">${fmtTimer(elap)}</div>
-            <button class="btn btn-stop" onclick="stopTimer()">■&nbsp; Stop Timer</button>
-            <div class="note-wrap">
-                <div class="note-label">📍 Where / what are you working on?</div>
-                <input id="active-note"
-                       class="note-input"
-                       type="text"
-                       placeholder="e.g. Hertex, Office – moodboards, Site visit"
-                       value="${active.note || ''}">
+        return `
+        <div class="client-detail-back" onclick="S.clientView=null;render()">← Back</div>
+        <div class="client-detail-header" style="border-top:4px solid ${c.color}">
+            <div class="client-avatar" style="background:${c.color};width:56px;height:56px;font-size:20px;font-weight:800;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">${initials(c.name)}</div>
+            <div>
+                <div style="font-size:20px;font-weight:800;color:var(--text)">${c.name}</div>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${todaySec > 0 ? 'Today: ' + fmtHours(todaySec) : 'No time today'}</div>
             </div>
-            <div class="timer-hint">Tap another client to switch — note carries over</div>
-        </div>`;
-    } else {
-        html += `
-        <div class="card idle-card">
-            <div class="idle-icon">⏱</div>
-            <div class="idle-text">No active timer<br>Tap a client card to start tracking</div>
+            <button class="client-edit-btn" style="margin-left:auto;position:static" onclick="openEdit('${c.id}')" title="Edit client">✎</button>
+        </div>
+        <div class="card timer-card" style="margin-top:16px">
+            ${timer ? `
+                <div class="timer-status"><div class="dot-pulse"></div>Tracking</div>
+                <div class="timer-digits" id="timer-el-${c.id}">${fmtTimer(elap)}</div>
+                <button class="btn btn-stop" onclick="stopTimer('${c.id}')">■&nbsp; Stop Timer</button>
+                <div class="note-wrap">
+                    <div class="note-label">📍 Where / what are you working on?</div>
+                    <input id="active-note-${c.id}" class="note-input" type="text"
+                           placeholder="e.g. Ital Tile – floor tiles for lounge"
+                           value="${timer.note || ''}">
+                </div>
+            ` : `
+                <div class="idle-icon" style="font-size:36px;margin-bottom:8px">⏱</div>
+                <div class="idle-text" style="margin-bottom:20px">Timer not running</div>
+                <button class="btn btn-primary" style="font-size:16px;padding:14px 32px" onclick="startTimer('${c.id}')">▶&nbsp; Start Timer</button>
+            `}
         </div>`;
     }
+
+    // ── GRID VIEW ──
+    const todayArr = todaySessions();
+    const runningElapsed = Object.entries(S.actives).reduce((sum, [cid, t]) => sum + elapsed(t.start), 0);
+    const todayTotal = todayArr.reduce((sum, s) => sum + sessionSecs(s), 0) + runningElapsed;
+
+    let html = '';
 
     // Today's total banner
     if (todayTotal > 0) {
         html += `
         <div class="today-banner">
             <span class="today-banner-label">Total billed today</span>
-            <span class="today-banner-value">${fmtHours(todayTotal)}</span>
+            <span class="today-banner-value" id="today-banner-val">${fmtHours(todayTotal)}</span>
         </div>`;
     }
 
-    // Clients
+    // Running timers summary strip (if any timers active)
+    const activeIds = Object.keys(S.actives);
+    if (activeIds.length) {
+        html += `<div class="running-strip">`;
+        activeIds.forEach(cid => {
+            const rc = getClient(cid);
+            if (!rc) return;
+            html += `<div class="running-chip" onclick="handleClientTap('${cid}')">
+                <div class="dot-pulse" style="width:7px;height:7px;flex-shrink:0"></div>
+                <span style="font-weight:700">${rc.name}</span>
+                <span id="strip-el-${cid}" style="font-variant-numeric:tabular-nums">${fmtTimer(elapsed(S.actives[cid].start))}</span>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // Clients grid
+    const activeClients = S.clients.filter(c => !c.archived);
+    const archivedClients = S.clients.filter(c => c.archived);
+
     html += `
     <div class="section-header">
         <div class="section-title">Your clients</div>
-        <div style="font-size:11px;color:var(--text-muted)">Tap ✎ to edit</div>
+        <div style="font-size:11px;color:var(--text-muted)">Tap to open</div>
     </div>
     <div class="client-grid">`;
 
-    for (const c of S.clients) {
-        const isActive = active?.clientId === c.id;
-        const todaySec = clientSecs(c.id, todayArr) + (isActive ? elap : 0);
+    for (const c of activeClients) {
+        const isActive = !!S.actives[c.id];
+        const timer = S.actives[c.id];
+        const todaySec = clientSecs(c.id, todayArr) + (isActive ? elapsed(timer.start) : 0);
         html += `
         <div class="client-card ${isActive ? 'is-active' : ''}"
              data-client-id="${c.id}"
@@ -1719,15 +1854,40 @@ function renderTimer() {
             }
             <div class="client-avatar" style="background:${c.color}">${initials(c.name)}</div>
             <div class="client-name">${c.name}</div>
-            <div class="client-today">${todaySec > 0 ? 'Today: ' + fmtHours(todaySec) : isActive ? 'Running…' : 'No time today'}</div>
+            <div class="client-today" id="card-today-${c.id}">${todaySec > 0 ? 'Today: ' + fmtHours(todaySec) : isActive ? 'Running…' : 'No time today'}</div>
         </div>`;
     }
 
-    if (!S.clients.length) {
-        html += `<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">👤</div><p>No clients yet.<br>Tap "+ Client" to add one.</p></div></div>`;
+    if (!activeClients.length) {
+        html += `<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">👤</div><p>No active clients.<br>Tap "+ Client" to add one.</p></div></div>`;
     }
 
     html += `</div>`;
+
+    // Past Projects toggle
+    if (archivedClients.length) {
+        html += `
+        <div style="text-align:center;margin:16px 0 8px">
+            <button onclick="showArchivedTimer=!showArchivedTimer; render()" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">
+                ${showArchivedTimer ? '▲' : '▼'} Past Projects (${archivedClients.length})
+            </button>
+        </div>`;
+
+        if (showArchivedTimer) {
+            html += `<div class="client-grid" style="opacity:0.55">`;
+            for (const c of archivedClients) {
+                html += `
+                <div class="client-card" style="border-top:3px solid #999;cursor:default">
+                    <div class="client-avatar" style="background:${c.color};filter:grayscale(60%)">${initials(c.name)}</div>
+                    <div class="client-name" style="color:var(--text-muted)">${c.name}</div>
+                    <div class="client-today" style="margin-top:6px">
+                        <button onclick="restoreClient('${c.id}')" style="font-size:11px;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:3px 8px;cursor:pointer">Restore</button>
+                    </div>
+                </div>`;
+            }
+            html += `</div>`;
+        }
+    }
 
     return html;
 }
@@ -1825,13 +1985,13 @@ function renderReport() {
         <div class="chip ${S.filter==='all'?'active':''}" onclick="setFilter('all')">All Time</div>
     </div>
     <div class="stats-row">
-        <div class="stat-card"><div class="stat-value">${S.clients.length}</div><div class="stat-label">Clients</div></div>
+        <div class="stat-card"><div class="stat-value">${S.clients.filter(c=>!c.archived).length}</div><div class="stat-label">Clients</div></div>
         <div class="stat-card"><div class="stat-value">${sessions.length}</div><div class="stat-label">Sessions</div></div>
         <div class="stat-card"><div class="stat-value">${(totalSecs/3600).toFixed(1)}</div><div class="stat-label">Total hrs</div></div>
     </div>
     <div class="section-title" style="margin-bottom:10px">Billing breakdown</div>`;
 
-    const sorted = [...S.clients]
+    const sorted = [...S.clients.filter(c => !c.archived)]
         .map(c => ({
             c,
             secs: clientSecs(c.id, sessions),
@@ -1991,6 +2151,53 @@ function renderReport() {
         });
         return sh;
     })()}
+    ${(() => {
+        const archived = S.clients.filter(c => c.archived);
+        if (!archived.length) return '';
+        let ah = `
+        <div style="margin-top:24px">
+            <button onclick="showArchivedReport=!showArchivedReport; render()" style="background:none;border:none;width:100%;text-align:left;padding:0;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:${showArchivedReport?'12px':'0'}">
+                <div class="section-title" style="margin:0">Past Projects</div>
+                <span style="font-size:12px;color:var(--text-muted);background:var(--card);border-radius:10px;padding:2px 8px">${archived.length}</span>
+                <span style="margin-left:auto;font-size:13px;color:var(--text-muted)">${showArchivedReport ? '▲ Hide' : '▼ Show'}</span>
+            </button>`;
+        if (showArchivedReport) {
+            for (const c of archived) {
+                const allSessions = S.sessions.filter(s => s.clientId === c.id);
+                const allMileage = S.mileageLog.filter(m => m.clientId === c.id);
+                const allShopping = S.shopping.filter(x => x.clientId === c.id);
+                const totalSecs = allSessions.reduce((sum, s) => sum + sessionSecs(s), 0);
+                const totalKm = allMileage.reduce((sum, m) => sum + m.km, 0);
+                const totalGoods = allShopping.reduce((sum, x) => sum + x.amount, 0);
+                const totalFees = allShopping.reduce((sum, x) => sum + x.amount * x.procPercent / 100, 0);
+                ah += `
+                <div class="report-client-block" style="opacity:0.75;border-left:3px solid #999">
+                    <div class="report-client-header">
+                        <div class="report-color-bar" style="background:${c.color}"></div>
+                        <div class="client-avatar" style="background:${c.color};width:44px;height:44px;font-size:17px;flex-shrink:0;filter:grayscale(50%)">${initials(c.name)}</div>
+                        <div class="report-client-header-info">
+                            <div class="report-client-header-name">${c.name}</div>
+                            <div class="report-client-header-count" style="color:var(--accent)">✓ Complete</div>
+                        </div>
+                        <div style="text-align:right;flex-shrink:0">
+                            <div style="font-size:18px;font-weight:800;color:var(--text)">${(totalSecs/3600).toFixed(2)}</div>
+                            <div style="font-size:11px;color:var(--text-muted)">hours</div>
+                            ${totalKm > 0 ? `<div style="font-size:12px;font-weight:700;color:#7A6AAD">${totalKm} km</div>` : ''}
+                            ${totalGoods > 0 ? `<div style="font-size:12px;font-weight:700;color:var(--accent)">R ${fmtRand(totalGoods+totalFees)}</div>` : ''}
+                        </div>
+                    </div>
+                    <div style="padding:8px 16px 12px;display:flex;gap:8px;flex-wrap:wrap">
+                        <span style="font-size:12px;color:var(--text-muted)">${allSessions.length} session${allSessions.length!==1?'s':''}</span>
+                        ${totalKm > 0 ? `<span style="font-size:12px;color:var(--text-muted)">· ${totalKm} km</span>` : ''}
+                        ${allShopping.length > 0 ? `<span style="font-size:12px;color:var(--text-muted)">· ${allShopping.length} purchase${allShopping.length!==1?'s':''}</span>` : ''}
+                        <button onclick="restoreClient('${c.id}')" style="margin-left:auto;font-size:11px;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:3px 8px;cursor:pointer">Restore to active</button>
+                    </div>
+                </div>`;
+            }
+        }
+        ah += `</div>`;
+        return ah;
+    })()}
     <div class="danger-zone">
         <div class="danger-zone-label">Reset</div>
         <button class="btn btn-outline btn-block" style="color:var(--danger);border-color:var(--danger)" onclick="clearAllSessions()">
@@ -2068,6 +2275,10 @@ function renderModal() {
                          onclick="S.form.color='${col}'; render()"></div>`).join('')}
                 </div>
             </div>
+            ${isEdit ? `
+            <div style="margin-bottom:12px">
+                <button class="btn btn-outline btn-block" style="color:var(--accent);border-color:var(--accent)" onclick="archiveClient('${S.editId}')">✓ Mark Project Complete</button>
+            </div>` : ''}
             <div class="modal-actions">
                 ${isEdit ? `<button class="btn btn-outline" style="color:var(--danger)" onclick="deleteClient('${S.editId}')">Delete</button>` : ''}
                 <button class="btn btn-outline" onclick="S.modal=null; render()">Cancel</button>
@@ -2081,11 +2292,8 @@ function renderModal() {
 // EVENTS
 // ═══════════════════════════════════════════
 function handleClientTap(id) {
-    if (S.active?.clientId === id) {
-        stopTimer();
-    } else {
-        startTimer(id);
-    }
+    S.clientView = id;
+    render();
 }
 
 function switchTab(t) { S.tab = t; render(); }
@@ -2116,24 +2324,35 @@ setInterval(() => {
         if (tel) tel.textContent = fmtTimer(elapsed(S.travelActive.start));
     }
 
-    if (!S.active) return;
-    const el = document.getElementById('timer-el');
-    if (el) el.textContent = fmtTimer(elapsed(S.active.start));
+    const activeEntries = Object.entries(S.actives);
+    if (!activeEntries.length) return;
 
-    // Also update "today" in client card
-    const ac = document.querySelector('.client-card.is-active .client-today');
-    if (ac) {
-        const e2 = elapsed(S.active.start);
-        const todayBase = clientSecs(S.active.clientId, todaySessions());
-        ac.textContent = 'Today: ' + fmtHours(todayBase + e2);
-    }
+    const todayBase = todaySessions().reduce((s, ss) => s + sessionSecs(ss), 0);
+    let runningTotal = 0;
 
-    // Update today banner
-    const banner = document.querySelector('.today-banner-value');
-    if (banner) {
-        const allToday = todaySessions().reduce((s, ss) => s + sessionSecs(ss), 0);
-        banner.textContent = fmtHours(allToday + elapsed(S.active.start));
-    }
+    activeEntries.forEach(([cid, timer]) => {
+        const e = elapsed(timer.start);
+        runningTotal += e;
+
+        // detail view digit
+        const el = document.getElementById('timer-el-' + cid);
+        if (el) el.textContent = fmtTimer(e);
+
+        // running strip chip
+        const stripEl = document.getElementById('strip-el-' + cid);
+        if (stripEl) stripEl.textContent = fmtTimer(e);
+
+        // card "today" label
+        const cardToday = document.getElementById('card-today-' + cid);
+        if (cardToday) {
+            const base = clientSecs(cid, todaySessions());
+            cardToday.textContent = 'Today: ' + fmtHours(base + e);
+        }
+    });
+
+    // today banner
+    const banner = document.getElementById('today-banner-val');
+    if (banner) banner.textContent = fmtHours(todayBase + runningTotal);
 }, 1000);
 
 // ═══════════════════════════════════════════
