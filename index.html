@@ -1681,7 +1681,7 @@ function renderShopModal() {
                     : `<div class="photo-upload-area" id="shop-upload-area" onclick="document.getElementById('sh-photo').click()">📷 Tap to take photo or upload invoice</div>
                        <img id="shop-photo-preview" class="photo-preview" style="display:none">`
                 }
-                <input type="file" id="sh-photo" accept="image/*" capture="environment" style="display:none" onchange="handleShopPhoto(this)">
+                <input type="file" id="sh-photo" accept="image/*" style="display:none" onchange="handleShopPhoto(this)">
             </div>
             <div class="form-group">
                 <label class="form-label">Payment Confirmation <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
@@ -1690,7 +1690,7 @@ function renderShopModal() {
                     : `<div class="photo-upload-area" id="payment-proof-upload-area" onclick="document.getElementById('sh-payment-proof').click()">💳 Tap to add payment screenshot</div>
                        <img id="payment-proof-preview" class="photo-preview" style="display:none">`
                 }
-                <input type="file" id="sh-payment-proof" accept="image/*" capture="environment" style="display:none" onchange="handlePaymentProofPhoto(this)">
+                <input type="file" id="sh-payment-proof" accept="image/*" style="display:none" onchange="handlePaymentProofPhoto(this)">
             </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="S.modal=null;render()">Cancel</button>
