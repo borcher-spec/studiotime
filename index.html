@@ -406,6 +406,8 @@
             padding: 24px 20px 36px;
             width: 100%;
             max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
             animation: slideUp 0.22s ease;
         }
         @keyframes slideUp {
@@ -840,9 +842,9 @@ let S = {
     form: { name: '', color: COLORS[0] },
     mileageForm: { clientId: '', km: '', note: '', date: '' },
     manualForm: { clientId: '', date: '', hours: '', minutes: '0', note: '' },
-    shopping: [],  // { id, clientId, date, store, amount, procPercent, note, image, invoiceRef, paymentProof }
-    settings: { procPercent: 15 },
-    shopForm: { clientId: '', store: '', amount: '', procPercent: '', note: '', date: '', image: '', invoiceRef: '', paymentProof: '' }
+    shopping: [],  // { id, clientId, date, store, studioAmount, clientAmount, procPercent, note, image, invoiceRef, paymentProof }
+    settings: {},
+    shopForm: { clientId: '', store: '', studioAmount: '', clientAmount: '', procPercent: '', note: '', date: '', image: '', invoiceRef: '', paymentProof: '' }
 };
 
 // ═══════════════════════════════════════════
@@ -861,7 +863,13 @@ function load() {
             // migrate legacy single-timer format
             else if (d.active) S.actives[d.active.clientId] = { start: d.active.start, note: d.active.note || '' };
             if (d.travelActive !== undefined) S.travelActive = d.travelActive;
-            if (d.shopping) S.shopping = d.shopping;
+            if (d.shopping) {
+                S.shopping = d.shopping.map(x => ({
+                    ...x,
+                    studioAmount: x.studioAmount ?? x.amount ?? 0,
+                    clientAmount: x.clientAmount ?? x.amount ?? 0,
+                }));
+            }
             if (d.settings) S.settings = Object.assign(S.settings, d.settings);
         }
     } catch(e) {}
@@ -1446,9 +1454,9 @@ function openShopModal(id) {
         S.modal = 'shop-edit';
     } else {
         S.shopForm = {
-            clientId: S.clients[0]?.id || '',
-            store: '', amount: '',
-            procPercent: String(S.settings.procPercent),
+            clientId: '',
+            store: '', studioAmount: '', clientAmount: '',
+            procPercent: '',
             note: '', date: new Date().toISOString().slice(0,10), image: '',
             invoiceRef: '', paymentProof: ''
         };
@@ -1460,21 +1468,21 @@ function openShopModal(id) {
 
 function saveShopItem() {
     const store = document.getElementById('sh-store')?.value.trim();
-    const amount = parseFloat(document.getElementById('sh-amount')?.value);
-    const procPercent = parseFloat(document.getElementById('sh-proc')?.value) || S.settings.procPercent;
+    const studioAmount = parseFloat(document.getElementById('sh-studio-amount')?.value) || 0;
+    const clientAmount = parseFloat(document.getElementById('sh-client-amount')?.value);
+    const procPercent = parseFloat(document.getElementById('sh-proc')?.value) || 0;
     const clientId = document.getElementById('sh-client')?.value || '';
     const note = document.getElementById('sh-note')?.value.trim() || '';
     const date = document.getElementById('sh-date')?.value || new Date().toISOString().slice(0,10);
     const invoiceRef = document.getElementById('sh-invoice-ref')?.value.trim() || '';
     if (!store) { showToast('Please enter a store name'); return; }
-    if (!amount || amount <= 0) { showToast('Please enter a valid amount'); return; }
-    const item = { id: S.modal === 'shop-edit' ? S.shopForm.id : uid(), clientId, store, amount, procPercent, note, date: date + 'T12:00:00', image: S.shopForm.image || '', invoiceRef, paymentProof: S.shopForm.paymentProof || '' };
+    if (!clientAmount || clientAmount <= 0) { showToast('Please enter a valid client invoice amount'); return; }
+    const item = { id: S.modal === 'shop-edit' ? S.shopForm.id : uid(), clientId, store, studioAmount, clientAmount, procPercent, note, date: date + 'T12:00:00', image: S.shopForm.image || '', invoiceRef, paymentProof: S.shopForm.paymentProof || '' };
     if (S.modal === 'shop-edit') {
         S.shopping = S.shopping.map(x => x.id === item.id ? item : x);
     } else {
         S.shopping.unshift(item);
     }
-    S.settings.procPercent = procPercent;
     S.modal = null;
     save(); render();
     showToast(`Purchase at ${store} saved ✓`);
@@ -1537,11 +1545,17 @@ function handlePaymentProofPhoto(input) {
 }
 
 function updateShopCalc() {
-    const amount = parseFloat(document.getElementById('sh-amount')?.value) || 0;
+    const studioAmt = parseFloat(document.getElementById('sh-studio-amount')?.value) || 0;
+    const clientAmt = parseFloat(document.getElementById('sh-client-amount')?.value) || 0;
     const pct = parseFloat(document.getElementById('sh-proc')?.value) || 0;
-    const fee = amount * pct / 100;
+    const fee = clientAmt * pct / 100;
     const el = document.getElementById('shop-calc');
-    if (el) el.innerHTML = `Goods: <strong>R ${fmtRand(amount)}</strong> &nbsp;+&nbsp; Fee (${pct}%): <strong>R ${fmtRand(fee)}</strong> &nbsp;=&nbsp; Total: <strong>R ${fmtRand(amount + fee)}</strong>`;
+    if (!el) return;
+    if (!clientAmt && !studioAmt) { el.innerHTML = 'Enter amounts above to see calculation'; return; }
+    let html = '';
+    if (studioAmt) html += `Studio invoice: <strong>R ${fmtRand(studioAmt)}</strong> &nbsp;|&nbsp; `;
+    html += `Client invoice: <strong>R ${fmtRand(clientAmt)}</strong> &nbsp;+&nbsp; Fee (${pct}%): <strong>R ${fmtRand(fee)}</strong> &nbsp;=&nbsp; <strong>R ${fmtRand(clientAmt + fee)}</strong>`;
+    el.innerHTML = html;
 }
 
 function fmtRand(n) {
@@ -1560,17 +1574,24 @@ function shopFilteredItems() {
 
 function renderShopTab() {
     const items = shopFilteredItems();
-    const totalGoods = items.reduce((s, x) => s + x.amount, 0);
-    const totalFee = items.reduce((s, x) => s + x.amount * x.procPercent / 100, 0);
+    const totalStudio = items.reduce((s, x) => s + (x.studioAmount || 0), 0);
+    const totalClient = items.reduce((s, x) => s + (x.clientAmount || 0), 0);
+    const totalFee = items.reduce((s, x) => s + (x.clientAmount || 0) * x.procPercent / 100, 0);
 
     let html = `<button class="shop-add-btn" onclick="openShopModal()">🛍️ Add Purchase</button>`;
 
     // summary
     if (items.length) {
-        html += `<div class="shop-summary-card">
-            <div class="shop-summary-row"><span class="shop-summary-label">Total goods</span><span class="shop-summary-value">R ${fmtRand(totalGoods)}</span></div>
-            <div class="shop-summary-row"><span class="shop-summary-label">Procurement fees</span><span class="shop-summary-value">R ${fmtRand(totalFee)}</span></div>
-            <div class="shop-summary-row"><span class="shop-summary-label">Total to charge clients</span><span class="shop-summary-value">R ${fmtRand(totalGoods + totalFee)}</span></div>
+        const hasTradeDiscount = items.some(x => (x.studioAmount || 0) !== (x.clientAmount || 0));
+        html += `<div class="shop-summary-card">`;
+        if (hasTradeDiscount) {
+            html += `<div class="shop-summary-row"><span class="shop-summary-label">Studio invoices (you paid)</span><span class="shop-summary-value">R ${fmtRand(totalStudio)}</span></div>
+            <div class="shop-summary-row"><span class="shop-summary-label">Client invoices</span><span class="shop-summary-value">R ${fmtRand(totalClient)}</span></div>`;
+        } else {
+            html += `<div class="shop-summary-row"><span class="shop-summary-label">Total goods</span><span class="shop-summary-value">R ${fmtRand(totalClient)}</span></div>`;
+        }
+        html += `<div class="shop-summary-row"><span class="shop-summary-label">Procurement fees</span><span class="shop-summary-value">R ${fmtRand(totalFee)}</span></div>
+            <div class="shop-summary-row"><span class="shop-summary-label">Total to charge clients</span><span class="shop-summary-value">R ${fmtRand(totalClient + totalFee)}</span></div>
         </div>`;
     }
 
@@ -1594,12 +1615,15 @@ function renderShopTab() {
 
     Object.keys(grouped).sort((a,b) => b.localeCompare(a)).forEach(date => {
         const dayItems = grouped[date];
-        const dayGoods = dayItems.reduce((s,x) => s+x.amount, 0);
+        const dayGoods = dayItems.reduce((s,x) => s+(x.clientAmount||x.amount||0), 0);
         html += `<div class="date-label"><span>${fmtDateLabel(date)}</span><span>R ${fmtRand(dayGoods)} goods</span></div>`;
         dayItems.forEach(item => {
             const client = S.clients.find(c => c.id === item.clientId);
-            const fee = item.amount * item.procPercent / 100;
-            html += `<div class="shop-item">
+            const clientAmt = item.clientAmount || 0;
+            const studioAmt = item.studioAmount || 0;
+            const fee = clientAmt * item.procPercent / 100;
+            const hasDiscount = studioAmt > 0 && studioAmt !== clientAmt;
+            html += `<div class="shop-item" onclick="openShopModal('${item.id}')" style="cursor:pointer">
                 <div class="shop-item-header">
                     <div class="shop-color-bar" style="background:${client?.color || '#ccc'}"></div>
                     <div class="shop-item-info">
@@ -1609,14 +1633,14 @@ function renderShopTab() {
                         ${item.note ? `<div class="shop-note">${item.note}</div>` : ''}
                     </div>
                     <div class="shop-amounts">
-                        <div class="shop-total">R ${fmtRand(item.amount)}</div>
-                        <div class="shop-fee">+R ${fmtRand(fee)} fee</div>
+                        ${hasDiscount ? `<div style="font-size:11px;color:var(--text-muted);text-decoration:line-through">R ${fmtRand(studioAmt)}</div>` : ''}
+                        <div class="shop-total">R ${fmtRand(clientAmt)}</div>
+                        ${item.procPercent > 0 ? `<div class="shop-fee">+R ${fmtRand(fee)} fee</div>` : ''}
                     </div>
-                    <button class="session-del" onclick="openShopModal('${item.id}')">✎</button>
-                    <button class="session-del" onclick="deleteShopItem('${item.id}')">🗑</button>
+                    <button class="session-del" onclick="event.stopPropagation();deleteShopItem('${item.id}')">🗑</button>
                 </div>
-                ${item.image ? `<img class="shop-thumb" src="${item.image}" onclick="viewShopPhoto('${item.id}')">` : ''}
-                ${item.paymentProof ? `<img class="shop-thumb" src="${item.paymentProof}" onclick="viewPaymentProof('${item.id}')" style="margin-top:4px;opacity:0.85" title="Payment confirmation">` : ''}
+                ${item.image ? `<img class="shop-thumb" src="${item.image}" onclick="event.stopPropagation();viewShopPhoto('${item.id}')">` : ''}
+                ${item.paymentProof ? `<img class="shop-thumb" src="${item.paymentProof}" onclick="event.stopPropagation();viewPaymentProof('${item.id}')" style="margin-top:4px;opacity:0.85" title="Payment confirmation">` : ''}
             </div>`;
         });
     });
@@ -1658,14 +1682,18 @@ function renderShopModal() {
                 <input class="form-input" id="sh-invoice-ref" placeholder="e.g. ITL-2024-00482" value="${f.invoiceRef||''}">
             </div>
             <div class="form-group">
-                <label class="form-label">Amount Spent (R)</label>
-                <input class="form-input" id="sh-amount" type="number" placeholder="0.00" value="${f.amount||''}" oninput="updateShopCalc()">
+                <label class="form-label">Studio Invoice Amount (R) <span style="font-weight:400;color:var(--text-muted)">(what you paid)</span></label>
+                <input class="form-input" id="sh-studio-amount" type="number" placeholder="0.00" value="${f.studioAmount||''}" oninput="updateShopCalc()">
             </div>
             <div class="form-group">
-                <label class="form-label">Procurement % (your fee)</label>
-                <input class="form-input" id="sh-proc" type="number" placeholder="${S.settings.procPercent}" value="${f.procPercent||S.settings.procPercent}" oninput="updateShopCalc()">
+                <label class="form-label">Client Invoice Amount (R) <span style="font-weight:400;color:var(--text-muted)">(what client pays — same if no trade discount)</span></label>
+                <input class="form-input" id="sh-client-amount" type="number" placeholder="0.00" value="${f.clientAmount||''}" oninput="updateShopCalc()">
             </div>
-            <div class="proc-calc" id="shop-calc">Enter amount and % above to see calculation</div>
+            <div class="form-group">
+                <label class="form-label">Procurement % <span style="font-weight:400;color:var(--text-muted)">(your fee on client invoice)</span></label>
+                <input class="form-input" id="sh-proc" type="number" placeholder="e.g. 15" value="${(f.procPercent !== '' && f.procPercent !== undefined && f.procPercent !== null) ? f.procPercent : ''}" oninput="updateShopCalc()">
+            </div>
+            <div class="proc-calc" id="shop-calc">Enter amounts above to see calculation</div>
             <div class="form-group" style="margin-top:14px">
                 <label class="form-label">Date</label>
                 <input class="form-input" id="sh-date" type="date" value="${f.date||new Date().toISOString().slice(0,10)}">
@@ -1727,9 +1755,10 @@ function render() {
 
 // ── HEADER ──
 function renderHeader() {
-    let rightBtn = '';
-    if (S.tab === 'timer')  rightBtn = `<button class="header-btn" onclick="openAdd()">+ Client</button>`;
-    if (S.tab === 'report') rightBtn = `<button class="header-btn" onclick="exportExcel()">Export Excel</button>`;
+    const purchaseBtn = `<button class="header-btn" onclick="openShopModal()" style="font-size:12px;padding:6px 11px">🛍 + Purchase</button>`;
+    let rightBtn = purchaseBtn;
+    if (S.tab === 'timer')  rightBtn = `<div style="display:flex;gap:8px;align-items:center"><button class="header-btn" onclick="openAdd()">+ Client</button>${purchaseBtn}</div>`;
+    if (S.tab === 'report') rightBtn = `<div style="display:flex;gap:8px;align-items:center"><button class="header-btn" onclick="exportExcel()">Export</button>${purchaseBtn}</div>`;
     if (S.tab === 'shop')   rightBtn = `<button class="header-btn" onclick="openShopModal()">+ Purchase</button>`;
     return `
     <div class="header">
@@ -2115,8 +2144,10 @@ function renderReport() {
         clientIds.forEach(cid => {
             const client = S.clients.find(c => c.id === cid);
             const items = shopItems.filter(x => x.clientId === cid);
-            const totalGoods = items.reduce((s,x) => s + x.amount, 0);
-            const totalFee = items.reduce((s,x) => s + x.amount * x.procPercent / 100, 0);
+            const totalStudio = items.reduce((s,x) => s + (x.studioAmount||0), 0);
+            const totalClient = items.reduce((s,x) => s + (x.clientAmount||0), 0);
+            const totalFee = items.reduce((s,x) => s + (x.clientAmount||0) * x.procPercent / 100, 0);
+            const hasDiscount = items.some(x => (x.studioAmount||0) !== (x.clientAmount||0));
             sh += `<div class="report-shop-block">
                 <div class="report-client-header">
                     <div class="report-color-bar" style="background:${client?.color||'#ccc'}"></div>
@@ -2126,25 +2157,28 @@ function renderReport() {
                         <div class="report-client-header-count">${items.length} purchase${items.length!==1?'s':''}</div>
                     </div>
                     <div class="report-client-header-total">
-                        <div class="report-client-header-hrs" style="font-size:18px">R ${fmtRand(totalGoods+totalFee)}</div>
+                        <div class="report-client-header-hrs" style="font-size:18px">R ${fmtRand(totalClient+totalFee)}</div>
                         <div class="report-client-header-label">to charge</div>
                     </div>
                 </div>
                 <div class="report-sessions-list">
                 ${items.map(item => {
-                    const fee = item.amount * item.procPercent / 100;
+                    const cAmt = item.clientAmount || 0;
+                    const sAmt = item.studioAmount || 0;
+                    const fee = cAmt * item.procPercent / 100;
+                    const disc = sAmt > 0 && sAmt !== cAmt;
                     return `<div class="report-shop-row">
                         <div class="report-shop-date">${fmtDateLabel(item.date.slice(0,10))}</div>
-                        <div class="report-shop-store">${item.store}${item.note?` — ${item.note}`:''}</div>
+                        <div class="report-shop-store">${item.store}${item.note?` — ${item.note}`:''}${disc?` <span style="font-size:10px;color:var(--text-muted)">(studio R ${fmtRand(sAmt)})</span>`:''}</div>
                         <div class="report-shop-amounts">
-                            <div class="report-shop-cost">R ${fmtRand(item.amount)}</div>
-                            <div class="report-shop-fee">+R ${fmtRand(fee)} (${item.procPercent}%)</div>
+                            <div class="report-shop-cost">R ${fmtRand(cAmt)}</div>
+                            ${item.procPercent > 0 ? `<div class="report-shop-fee">+R ${fmtRand(fee)} (${item.procPercent}%)</div>` : ''}
                         </div>
                     </div>`;
                 }).join('')}
                 <div class="report-shop-total-row">
-                    <span style="color:var(--text-muted);font-size:13px">Goods R ${fmtRand(totalGoods)} + Fees R ${fmtRand(totalFee)}</span>
-                    <span style="color:var(--accent)">R ${fmtRand(totalGoods+totalFee)}</span>
+                    <span style="color:var(--text-muted);font-size:13px">${hasDiscount ? `Studio R ${fmtRand(totalStudio)} | ` : ''}Client R ${fmtRand(totalClient)} + Fees R ${fmtRand(totalFee)}</span>
+                    <span style="color:var(--accent)">R ${fmtRand(totalClient+totalFee)}</span>
                 </div>
                 </div>
             </div>`;
@@ -2168,8 +2202,8 @@ function renderReport() {
                 const allShopping = S.shopping.filter(x => x.clientId === c.id);
                 const totalSecs = allSessions.reduce((sum, s) => sum + sessionSecs(s), 0);
                 const totalKm = allMileage.reduce((sum, m) => sum + m.km, 0);
-                const totalGoods = allShopping.reduce((sum, x) => sum + x.amount, 0);
-                const totalFees = allShopping.reduce((sum, x) => sum + x.amount * x.procPercent / 100, 0);
+                const totalGoods = allShopping.reduce((sum, x) => sum + (x.clientAmount || x.amount || 0), 0);
+                const totalFees = allShopping.reduce((sum, x) => sum + (x.clientAmount || x.amount || 0) * x.procPercent / 100, 0);
                 ah += `
                 <div class="report-client-block" style="opacity:0.75;border-left:3px solid #999">
                     <div class="report-client-header">
